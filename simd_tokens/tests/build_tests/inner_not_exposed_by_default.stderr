@@ -1,0 +1,20 @@
+error[E0603]: function `__kernel_inner` is private
+  --> tests/build_tests/inner_not_exposed_by_default.rs:24:22
+   |
+24 |     let _ = kernels::__kernel_inner(1.0);
+   |                      ^^^^^^^^^^^^^^ private function
+   |
+note: the function `__kernel_inner` is defined here
+  --> tests/build_tests/inner_not_exposed_by_default.rs:15:9
+   |
+15 |     pub fn kernel(a: f32, token: impl SimdToken) -> f32 {
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0133]: call to function `__kernel_inner` with `#[target_feature]` is unsafe and requires unsafe block
+  --> tests/build_tests/inner_not_exposed_by_default.rs:24:13
+   |
+24 |     let _ = kernels::__kernel_inner(1.0);
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to function with `#[target_feature]`
+   |
+   = help: in order for the call to be safe, the context requires the following additional target feature: sse
+   = note: the sse target feature being enabled in the build configuration does not remove the requirement to list it in `#[target_feature]`

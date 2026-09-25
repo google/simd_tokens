@@ -1,0 +1,20 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 <LICENSE or
+# https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+# <LICENSE or https://opensource.org/licenses/MIT>, at your
+# option. This file may not be copied, modified, or distributed
+# except according to those terms.
+
+[package]
+name = "simd_tokens_example"
+publish = false
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+simd_tokens = { path = "../simd_tokens" }
+safe_unaligned_simd = { version = "0.2", features = ["avx512"] }
+
+[dev-dependencies]
+googletest.workspace = true

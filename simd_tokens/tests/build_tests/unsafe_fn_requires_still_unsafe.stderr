@@ -1,0 +1,13 @@
+error: #[simd_entry] on an `unsafe fn`: If the function has further safety preconditions, use #[simd_entry(still_unsafe)] to keep it unsafe to call. Otherwise, remove `unsafe` from the signature.
+  --> tests/build_tests/unsafe_fn_requires_still_unsafe.rs:16:1
+   |
+16 | unsafe fn raw_add(a: f32, b: f32, token: impl SimdToken) -> f32 {
+   | ^^^^^^
+
+warning: unused import: `SimdToken`
+ --> tests/build_tests/unsafe_fn_requires_still_unsafe.rs:9:31
+  |
+9 | use simd_tokens::{simd_entry, SimdToken};
+  |                               ^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

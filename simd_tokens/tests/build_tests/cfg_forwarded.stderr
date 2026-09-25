@@ -1,0 +1,16 @@
+error: unused return value of `must_use_add` that must be used
+  --> tests/build_tests/cfg_forwarded.rs:36:5
+   |
+36 |     must_use_add(1.0, 2.0, token);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: must use this
+note: the lint level is defined here
+  --> tests/build_tests/cfg_forwarded.rs:1:9
+   |
+ 1 | #![deny(unused_must_use)]
+   |         ^^^^^^^^^^^^^^^
+help: use `let _ = ...` to ignore the resulting value
+   |
+36 |     let _ = must_use_add(1.0, 2.0, token);
+   |     +++++++

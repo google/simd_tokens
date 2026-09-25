@@ -1,0 +1,28 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 <LICENSE or
+# https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+# <LICENSE or https://opensource.org/licenses/MIT>, at your
+# option. This file may not be copied, modified, or distributed
+# except according to those terms.
+
+[package]
+name = "simd_tokens_macros"
+description = "Procedural macros for the simd_tokens crate. Use `simd_tokens` instead of depending on this crate directly."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }
+
+[dev-dependencies]
+googletest.workspace = true

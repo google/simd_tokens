@@ -1,0 +1,13 @@
+error: #[simd_entry] found more than one token parameter; exactly one parameter of type `impl SimdToken` (or a generic `T: SimdToken`) is expected
+  --> tests/build_tests/multiple_token_params.rs:15:46
+   |
+15 | fn two_tokens(a: f32, first: impl SimdToken, second: impl SimdToken) -> f32 {
+   |                                              ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `SimdToken`
+ --> tests/build_tests/multiple_token_params.rs:9:31
+  |
+9 | use simd_tokens::{simd_entry, SimdToken};
+  |                               ^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

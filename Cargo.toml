@@ -1,0 +1,28 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 <LICENSE or
+# https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+# <LICENSE or https://opensource.org/licenses/MIT>, at your
+# option. This file may not be copied, modified, or distributed
+# except according to those terms.
+
+[workspace]
+resolver = "3"
+members = [
+    "simd_tokens",
+    "simd_tokens_macros",
+    "example",
+]
+
+[workspace.package]
+# LINT.IfChange(version)
+version = "0.2.0"
+# LINT.ThenChange(simd_tokens/Cargo.toml)
+edition = "2024"
+rust-version = "1.95"
+authors = ["Maximilian Hils <mhils@google.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/google/simd_tokens"
+
+[workspace.dependencies]
+googletest = "0.14.3"

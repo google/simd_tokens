@@ -1,0 +1,5 @@
+error: #[simd_entry] expects a token parameter of type `impl SimdToken` (or a generic `T: SimdToken`), e.g. `token: impl SimdToken`
+  --> tests/build_tests/missing_token_param.rs:16:1
+   |
+16 | fn no_token(a: f32) -> f32 {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^

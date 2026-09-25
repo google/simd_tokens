@@ -1,0 +1,7 @@
+error[E0133]: call to function `kernel_raw` with `#[target_feature]` is unsafe and requires unsafe block
+  --> tests/build_tests/inner_requires_unsafe.rs:21:13
+   |
+21 |     let _ = kernel_raw(1.0);
+   |             ^^^^^^^^^^^^^^^ call to function with `#[target_feature]`
+   |
+   = help: in order for the call to be safe, the context requires the following additional target feature: avx2

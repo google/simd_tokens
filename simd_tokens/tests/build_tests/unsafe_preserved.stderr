@@ -1,0 +1,7 @@
+error[E0133]: call to unsafe function `raw_add` is unsafe and requires unsafe block
+  --> tests/build_tests/unsafe_preserved.rs:34:13
+   |
+34 |     let _ = raw_add(1.0, 2.0, token);
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+   |
+   = note: consult the function's documentation for information on how to avoid undefined behavior

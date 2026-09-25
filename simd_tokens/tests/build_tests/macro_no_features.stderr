@@ -1,0 +1,13 @@
+error: #[simd_entry] expects at least one #[target_feature(enable = "...")] attribute on the function (or inside a cfg_attr). Use #[simd_entry(allow_no_target_features)] if this is intentional.
+  --> tests/build_tests/macro_no_features.rs:14:1
+   |
+14 | fn no_features(a: f32, token: impl SimdToken) -> f32 {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `SimdToken`
+ --> tests/build_tests/macro_no_features.rs:9:31
+  |
+9 | use simd_tokens::{simd_entry, SimdToken};
+  |                               ^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

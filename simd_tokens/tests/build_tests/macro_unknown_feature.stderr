@@ -1,0 +1,13 @@
+error: #[simd_entry] does not recognize feature "unknown_feature". Add a mapping in feature_to_trait() for this feature.
+  --> tests/build_tests/macro_unknown_feature.rs:14:1
+   |
+14 | fn unknown_feature_fn(a: f32, token: impl SimdToken) -> f32 {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `SimdToken`
+ --> tests/build_tests/macro_unknown_feature.rs:9:31
+  |
+9 | use simd_tokens::{simd_entry, SimdToken};
+  |                               ^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

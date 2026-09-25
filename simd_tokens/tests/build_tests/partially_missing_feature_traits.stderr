@@ -1,0 +1,69 @@
+error[E0277]: the trait bound `PartialToken: Sse2` is not satisfied
+  --> tests/build_tests/partially_missing_feature_traits.rs:39:35
+   |
+39 |     let _ = require_multiple(1.0, token);
+   |             ----------------      ^^^^^ unsatisfied trait bound
+   |             |
+   |             required by a bound introduced by this call
+   |
+help: the trait `Sse2` is not implemented for `PartialToken`
+  --> tests/build_tests/partially_missing_feature_traits.rs:12:1
+   |
+12 | struct PartialToken;
+   | ^^^^^^^^^^^^^^^^^^^
+help: the following other types implement trait `Sse2`
+  --> src/features/x86.rs
+   |
+   |           unsafe impl $crate::features::Sse2 for $token {}
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |           |
+   |           `Avx2Token`
+   |           `Avx512Token`
+   |           `Sse2Token`
+   |           `Sse42Token`
+   |
+  ::: src/tokens/x86.rs
+   |
+   | / define_x86_token!(
+   | |     /// Proof that SSE + SSE2 are available (x86-64-v1 baseline level).
+   | |     Sse2Token,
+   | |     "sse",
+   | |     "sse2",
+   | | );
+   | |_- in this macro invocation
+   |
+   | / define_x86_token!(
+   | |     /// Proof that SSE4.2 + POPCNT are available (x86-64-v2 level).
+   | |     Sse42Token,
+   | |     "sse",
+...  |
+   | |     "cmpxchg16b",
+   | | );
+   | |_- in this macro invocation
+   |
+   | / define_x86_token!(
+   | |     /// Proof that AVX2 + FMA + BMI1/2 + F16C + LZCNT are available (x86-64-v3 level).
+   | |     Avx2Token,
+   | |     "sse",
+...  |
+   | |     "movbe",
+   | | );
+   | |_- in this macro invocation
+   |
+   | / define_x86_token!(
+   | |     /// Proof that AVX-512 (F + CD + VL + DQ + BW) is available (x86-64-v4 level).
+   | |     Avx512Token,
+   | |     "sse",
+...  |
+   | |     "avx512vl",
+   | | );
+   | |_- in this macro invocation
+note: required by a bound in `require_multiple`
+  --> tests/build_tests/partially_missing_feature_traits.rs:28:1
+   |
+28 | #[simd_entry]
+   | ^^^^^^^^^^^^^ required by this bound in `require_multiple`
+...
+31 | fn require_multiple(a: f32, token: impl SimdToken) -> f32 {
+   |    ---------------- required by a bound in this function
+   = note: this error originates in the macro `$crate::features::__impl_feature_trait` which comes from the expansion of the attribute macro `simd_entry` (in Nightly builds, run with -Z macro-backtrace for more info)

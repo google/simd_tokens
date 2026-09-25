@@ -1,0 +1,10 @@
+error[E0428]: the name `kernel_raw` is defined multiple times
+  --> tests/build_tests/raw_variant_name_collides.rs:22:1
+   |
+18 | fn kernel(a: f32, token: impl SimdToken) -> f32 {
+   | ----------------------------------------------- previous definition of the value `kernel_raw` here
+...
+22 | fn kernel_raw(a: f32) -> f32 {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `kernel_raw` redefined here
+   |
+   = note: `kernel_raw` must be defined only once in the value namespace of this module

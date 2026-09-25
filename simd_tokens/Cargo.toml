@@ -1,0 +1,36 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 <LICENSE or
+# https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+# <LICENSE or https://opensource.org/licenses/MIT>, at your
+# option. This file may not be copied, modified, or distributed
+# except according to those terms.
+
+[package]
+name = "simd_tokens"
+description = "Zero-sized proof tokens for safe dispatch of #[target_feature] SIMD functions."
+readme = "../README.md"
+keywords = ["simd", "target-feature"]
+categories = ["hardware-support"]
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["std"]
+# Enables runtime CPU feature detection in `try_new()`. Without it, tokens can
+# only be obtained for features that are enabled at compile time.
+std = []
+
+[dependencies]
+# Exact pin: the macro emits paths into this crate's internal API surface.
+# LINT.IfChange(version)
+simd_tokens_macros = { version = "=0.2.0", path = "../simd_tokens_macros" }
+# LINT.ThenChange(../Cargo.toml)
+
+[dev-dependencies]
+googletest.workspace = true
+trybuild = "1.0"

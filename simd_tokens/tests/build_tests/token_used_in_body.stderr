@@ -1,0 +1,5 @@
+error: the token parameter `token` is not in scope inside the body: #[simd_entry] compiles the body as a token-free `#[target_feature]` function. To call another #[simd_entry] function from here, expose its inner function with `#[simd_entry(expose_raw_variant)]` and call that; it is safe to call from a matching #[target_feature] context.
+  --> tests/build_tests/token_used_in_body.rs:24:15
+   |
+24 |     callee(a, token)
+   |               ^^^^^
