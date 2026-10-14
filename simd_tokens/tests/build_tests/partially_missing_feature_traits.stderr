@@ -1,7 +1,7 @@
 error[E0277]: the trait bound `PartialToken: Sse2` is not satisfied
-  --> tests/build_tests/partially_missing_feature_traits.rs:39:35
+  --> tests/build_tests/partially_missing_feature_traits.rs:43:35
    |
-39 |     let _ = require_multiple(1.0, token);
+43 |     let _ = require_multiple(1.0, token);
    |             ----------------      ^^^^^ unsatisfied trait bound
    |             |
    |             required by a bound introduced by this call
@@ -59,11 +59,11 @@ help: the following other types implement trait `Sse2`
    | | );
    | |_- in this macro invocation
 note: required by a bound in `require_multiple`
-  --> tests/build_tests/partially_missing_feature_traits.rs:28:1
+  --> tests/build_tests/partially_missing_feature_traits.rs:32:1
    |
-28 | #[simd_entry]
+32 | #[simd_entry]
    | ^^^^^^^^^^^^^ required by this bound in `require_multiple`
 ...
-31 | fn require_multiple(a: f32, token: impl SimdToken) -> f32 {
+35 | fn require_multiple(a: f32, token: impl SimdToken) -> f32 {
    |    ---------------- required by a bound in this function
    = note: this error originates in the macro `$crate::features::__impl_feature_trait` which comes from the expansion of the attribute macro `simd_entry` (in Nightly builds, run with -Z macro-backtrace for more info)

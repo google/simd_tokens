@@ -16,11 +16,18 @@ impl SimdToken for DummyToken {
     }
 }
 
+// SAFETY: Compile-only negative build test (`main` fails to compile due to calling `unsafe fn
+// raw_add` outside an `unsafe` block before any code can execute at runtime).
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 unsafe impl simd_tokens::features::Sse for DummyToken {}
+// SAFETY: Compile-only negative build test (`main` fails to compile due to calling `unsafe fn
+// raw_add` outside an `unsafe` block before any code can execute at runtime).
 #[cfg(target_arch = "aarch64")]
 unsafe impl simd_tokens::features::Neon for DummyToken {}
 
+/// # Safety
+///
+/// The caller must ensure that `a` and `b` are finite `f32` values (test-only contract).
 #[simd_entry(still_unsafe)]
 #[cfg_attr(any(target_arch = "x86", target_arch = "x86_64"), target_feature(enable = "sse"))]
 #[cfg_attr(target_arch = "aarch64", target_feature(enable = "neon"))]

@@ -7,11 +7,6 @@
 // except according to those terms.
 
 //! Integration tests for the `#[simd_entry]` proc macro.
-//!
-//! Every `unsafe` here is a test fixture: the feature impls are hand-written
-//! for a token that never probes the CPU, and the raw variants being called
-//! have bodies of plain arithmetic. Per-site SAFETY comments would be noise.
-#![allow(clippy::undocumented_unsafe_blocks)]
 
 use googletest::prelude::*;
 use simd_tokens::{simd_entry, SimdToken};
@@ -29,28 +24,103 @@ impl SimdToken for TestToken {
 }
 
 // ---------------------------------------------------------------------------
-// FeatureToken: A token implementing specific features for testing bounds.
+// FeatureToken: A single-feature token ("sse" on x86, "neon" on aarch64).
 // ---------------------------------------------------------------------------
 #[derive(Copy, Clone, Debug)]
-struct FeatureToken;
+struct FeatureToken {
+    // Safety invariant: `FeatureToken` is only constructed in `FeatureToken::try_new` after
+    // verifying via runtime CPU feature detection that the current CPU supports `"sse"` (on
+    // x86/x86_64) or `"neon"` (on aarch64) for the lifetime of the process.
+    _private: (),
+}
 
 impl SimdToken for FeatureToken {
     fn try_new() -> Option<Self> {
-        Some(Self)
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        if !std::arch::is_x86_feature_detected!("sse") {
+            return None;
+        }
+        #[cfg(target_arch = "aarch64")]
+        if !std::arch::is_aarch64_feature_detected!("neon") {
+            return None;
+        }
+        Some(Self { _private: () })
     }
 }
 
-// Implement primary feature: Sse on x86, Neon on aarch64.
+// SAFETY: `simd_tokens::features::Sse` requires that a value of `Self` can only be constructed if
+// the `"sse"` CPU target feature is supported on the current machine for the lifetime of the
+// process. `FeatureToken`'s `_private` field invariant guarantees that `FeatureToken` is only
+// constructed in `FeatureToken::try_new` after `std::arch::is_x86_feature_detected!("sse")`
+// returns `true`.
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 unsafe impl simd_tokens::features::Sse for FeatureToken {}
+// SAFETY: `simd_tokens::features::Neon` requires that a value of `Self` can only be constructed if
+// the `"neon"` CPU target feature is supported on the current machine for the lifetime of the
+// process. `FeatureToken`'s `_private` field invariant guarantees that `FeatureToken` is only
+// constructed in `FeatureToken::try_new` after `std::arch::is_aarch64_feature_detected!("neon")`
+// returns `true`.
 #[cfg(target_arch = "aarch64")]
 unsafe impl simd_tokens::features::Neon for FeatureToken {}
 
-// Implement secondary feature: Sse2 on x86, Aes on aarch64.
+// ---------------------------------------------------------------------------
+// MultiFeatureToken: A multi-feature token ("sse"+"sse2" on x86, "neon"+"aes" on aarch64).
+// ---------------------------------------------------------------------------
+#[derive(Copy, Clone, Debug)]
+struct MultiFeatureToken {
+    // Safety invariant: `MultiFeatureToken` is only constructed in `MultiFeatureToken::try_new`
+    // after verifying via runtime CPU feature detection that the current CPU supports `"sse"` and
+    // `"sse2"` (on x86/x86_64) or `"neon"` and `"aes"` (on aarch64) for the lifetime of the
+    // process.
+    _private: (),
+}
+
+impl SimdToken for MultiFeatureToken {
+    fn try_new() -> Option<Self> {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        if !(std::arch::is_x86_feature_detected!("sse")
+            && std::arch::is_x86_feature_detected!("sse2"))
+        {
+            return None;
+        }
+        #[cfg(target_arch = "aarch64")]
+        if !(std::arch::is_aarch64_feature_detected!("neon")
+            && std::arch::is_aarch64_feature_detected!("aes"))
+        {
+            return None;
+        }
+        Some(Self { _private: () })
+    }
+}
+
+// SAFETY: `simd_tokens::features::Sse` requires that a value of `Self` can only be constructed if
+// the `"sse"` CPU target feature is supported on the current machine for the lifetime of the
+// process. `MultiFeatureToken`'s `_private` field invariant guarantees that `MultiFeatureToken` is
+// only constructed in `MultiFeatureToken::try_new` after
+// `std::arch::is_x86_feature_detected!("sse")` returns `true`.
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-unsafe impl simd_tokens::features::Sse2 for FeatureToken {}
+unsafe impl simd_tokens::features::Sse for MultiFeatureToken {}
+// SAFETY: `simd_tokens::features::Sse2` requires that a value of `Self` can only be constructed if
+// the `"sse2"` CPU target feature is supported on the current machine for the lifetime of the
+// process. `MultiFeatureToken`'s `_private` field invariant guarantees that `MultiFeatureToken` is
+// only constructed in `MultiFeatureToken::try_new` after
+// `std::arch::is_x86_feature_detected!("sse2")` returns `true`.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+unsafe impl simd_tokens::features::Sse2 for MultiFeatureToken {}
+// SAFETY: `simd_tokens::features::Neon` requires that a value of `Self` can only be constructed if
+// the `"neon"` CPU target feature is supported on the current machine for the lifetime of the
+// process. `MultiFeatureToken`'s `_private` field invariant guarantees that `MultiFeatureToken` is
+// only constructed in `MultiFeatureToken::try_new` after
+// `std::arch::is_aarch64_feature_detected!("neon")` returns `true`.
 #[cfg(target_arch = "aarch64")]
-unsafe impl simd_tokens::features::Aes for FeatureToken {}
+unsafe impl simd_tokens::features::Neon for MultiFeatureToken {}
+// SAFETY: `simd_tokens::features::Aes` requires that a value of `Self` can only be constructed if
+// the `"aes"` CPU target feature is supported on the current machine for the lifetime of the
+// process. `MultiFeatureToken`'s `_private` field invariant guarantees that `MultiFeatureToken` is
+// only constructed in `MultiFeatureToken::try_new` after
+// `std::arch::is_aarch64_feature_detected!("aes")` returns `true`.
+#[cfg(target_arch = "aarch64")]
+unsafe impl simd_tokens::features::Aes for MultiFeatureToken {}
 
 // ---------------------------------------------------------------------------
 // Tests verifying feature trait bounds mapping
@@ -65,7 +135,9 @@ fn feature_gated(a: f32, b: f32, token: impl SimdToken) -> f32 {
 
 #[gtest]
 fn test_feature_gated() {
-    let token = FeatureToken::try_new().unwrap();
+    let Some(token) = FeatureToken::try_new() else {
+        return;
+    };
     let result = feature_gated(1.0, 2.0, token);
     expect_eq!(result, 3.0);
 }
@@ -79,8 +151,29 @@ fn multi_feature_gated(a: f32, b: f32, token: impl SimdToken) -> f32 {
 
 #[gtest]
 fn test_multi_feature_gated() {
-    let token = FeatureToken::try_new().unwrap();
+    let Some(token) = MultiFeatureToken::try_new() else {
+        return;
+    };
     let result = multi_feature_gated(1.0, 2.0, token);
+    expect_eq!(result, 3.0);
+}
+
+#[simd_entry]
+#[cfg_attr(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    target_feature(enable = "sse", enable = "sse2",)
+)]
+#[cfg_attr(target_arch = "aarch64", target_feature(enable = "neon", enable = "aes",))]
+fn multi_clause_feature_gated(a: f32, b: f32, token: impl SimdToken) -> f32 {
+    a + b
+}
+
+#[gtest]
+fn test_multi_clause_feature_gated() {
+    let Some(token) = MultiFeatureToken::try_new() else {
+        return;
+    };
+    let result = multi_clause_feature_gated(1.0, 2.0, token);
     expect_eq!(result, 3.0);
 }
 
@@ -94,7 +187,9 @@ fn generic_token_inline<T: SimdToken>(a: f32, b: f32, token: T) -> f32 {
 
 #[gtest]
 fn test_generic_token_inline() {
-    let token = FeatureToken::try_new().unwrap();
+    let Some(token) = FeatureToken::try_new() else {
+        return;
+    };
     expect_eq!(generic_token_inline(1.0, 2.0, token), 3.0);
 }
 
@@ -111,7 +206,9 @@ where
 
 #[gtest]
 fn test_generic_token_where() {
-    let token = FeatureToken::try_new().unwrap();
+    let Some(token) = FeatureToken::try_new() else {
+        return;
+    };
     expect_eq!(generic_token_where(token, 1.0, 2.0), 3.0);
 }
 
@@ -126,7 +223,9 @@ fn calls_other_entry(a: f32, b: f32, token: impl SimdToken) -> f32 {
 
 #[gtest]
 fn test_calls_other_entry() {
-    let token = FeatureToken::try_new().unwrap();
+    let Some(token) = FeatureToken::try_new() else {
+        return;
+    };
     expect_eq!(calls_other_entry(1.0, 2.0, token), 6.0);
 }
 
@@ -135,19 +234,46 @@ fn test_calls_other_entry() {
 // parameter.
 #[gtest]
 fn test_raw_variant() {
-    // SAFETY: FeatureToken::try_new() succeeded above in the same process, so the
-    // baseline feature (sse / neon) is present.
-    let result = unsafe { feature_gated_raw(1.0, 2.0) };
-    expect_eq!(result, 3.0);
-    let result = unsafe { multi_feature_gated_kernel(1.0, 2.0) };
-    expect_eq!(result, 3.0);
+    if FeatureToken::try_new().is_some() {
+        // SAFETY: Calling `feature_gated_raw` requires that the target feature enabled on it
+        // (`"sse"` on x86/x86_64 or `"neon"` on aarch64) is supported by the current CPU at
+        // runtime. `FeatureToken::try_new()` returned `Some` immediately above, which by
+        // `FeatureToken`'s `_private` field invariant guarantees that the required CPU feature was
+        // verified via `std::arch` runtime feature detection and remains supported for the
+        // lifetime of the process.
+        let result = unsafe { feature_gated_raw(1.0, 2.0) };
+        expect_eq!(result, 3.0);
+    }
+    if MultiFeatureToken::try_new().is_some() {
+        // SAFETY: Calling `multi_feature_gated_kernel` requires that both target features enabled
+        // on it (`"sse"` and `"sse2"` on x86/x86_64, or `"neon"` and `"aes"` on aarch64) are
+        // supported by the current CPU at runtime. `MultiFeatureToken::try_new()` returned `Some`
+        // immediately above, which by `MultiFeatureToken`'s `_private` field invariant guarantees
+        // that both required CPU features were verified via `std::arch` runtime feature detection
+        // and remain supported for the lifetime of the process.
+        let result = unsafe { multi_feature_gated_kernel(1.0, 2.0) };
+        expect_eq!(result, 3.0);
+    }
 }
 
 // The raw variant of the generic form drops the token's type parameter entirely.
 #[gtest]
 fn test_generic_raw_variant() {
+    let Some(_token) = FeatureToken::try_new() else {
+        return;
+    };
+    // SAFETY: Calling `generic_token_inline_raw` requires that the target feature enabled on it
+    // (`"sse"` on x86/x86_64 or `"neon"` on aarch64) is supported by the current CPU at runtime.
+    // `FeatureToken::try_new()` succeeded above, which by `FeatureToken`'s `_private` field
+    // invariant guarantees that the required CPU feature is supported for the lifetime of the
+    // process.
     let result = unsafe { generic_token_inline_raw(1.0, 2.0) };
     expect_eq!(result, 3.0);
+    // SAFETY: Calling `generic_token_where_raw` requires that the target feature enabled on it
+    // (`"sse"` on x86/x86_64 or `"neon"` on aarch64) is supported by the current CPU at runtime.
+    // `FeatureToken::try_new()` succeeded above, which by `FeatureToken`'s `_private` field
+    // invariant guarantees that the required CPU feature is supported for the lifetime of the
+    // process.
     let result = unsafe { generic_token_where_raw(1.0, 2.0) };
     expect_eq!(result, 3.0);
 }
@@ -164,9 +290,15 @@ fn default_named(a: f32, token: impl SimdToken) -> f32 {
 
 #[gtest]
 fn test_raw_variant_default_name() {
-    let token = FeatureToken::try_new().unwrap();
+    let Some(token) = FeatureToken::try_new() else {
+        return;
+    };
     expect_eq!(default_named(2.0, token), 6.0);
-    // SAFETY: FeatureToken::try_new() succeeded, so the baseline feature is present.
+    // SAFETY: Calling `default_named_raw` requires that the target feature enabled on it (`"sse"`
+    // on x86/x86_64 or `"neon"` on aarch64) is supported by the current CPU at runtime.
+    // `FeatureToken::try_new()` succeeded above, which by `FeatureToken`'s `_private` field
+    // invariant guarantees that the required CPU feature is supported for the lifetime of the
+    // process.
     expect_eq!(unsafe { default_named_raw(2.0) }, 6.0);
 }
 
@@ -355,6 +487,10 @@ fn test_generic_method() {
 }
 
 // Unsafe function: `still_unsafe` keeps it unsafe to call.
+/// # Safety
+///
+/// The caller must ensure that `a` and `b` are finite `f32` values (test-only contract exercising
+/// `still_unsafe`).
 #[simd_entry(allow_no_target_features, still_unsafe)]
 unsafe fn raw_add(a: f32, b: f32, token: impl SimdToken) -> f32 {
     a + b
@@ -363,6 +499,8 @@ unsafe fn raw_add(a: f32, b: f32, token: impl SimdToken) -> f32 {
 #[gtest]
 fn test_unsafe_function() {
     let token = TestToken::try_new().unwrap();
+    // SAFETY: `raw_add` requires that `a` and `b` are finite `f32` values. The arguments `1.0` and
+    // `2.0` are finite `f32` literals passed directly to `raw_add`.
     let result = unsafe { raw_add(1.0, 2.0, token) };
     expect_eq!(result, 3.0);
 }
