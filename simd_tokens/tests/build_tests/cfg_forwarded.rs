@@ -17,8 +17,12 @@ impl SimdToken for DummyToken {
     }
 }
 
+// SAFETY: Compile-only negative build test (`main` fails to compile due to
+// `#[deny(unused_must_use)]` before any code can execute at runtime).
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 unsafe impl simd_tokens::features::Sse for DummyToken {}
+// SAFETY: Compile-only negative build test (`main` fails to compile due to
+// `#[deny(unused_must_use)]` before any code can execute at runtime).
 #[cfg(target_arch = "aarch64")]
 unsafe impl simd_tokens::features::Neon for DummyToken {}
 

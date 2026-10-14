@@ -10,6 +10,9 @@ use simd_tokens::{simd_entry, SimdToken};
 
 // This should fail to compile because an `unsafe fn` needs
 // `#[simd_entry(still_unsafe)]`: the token alone makes the function safe.
+/// # Safety
+///
+/// The caller must ensure that `a` and `b` are finite `f32` values (test-only contract).
 #[simd_entry]
 #[cfg_attr(any(target_arch = "x86", target_arch = "x86_64"), target_feature(enable = "sse"))]
 #[cfg_attr(target_arch = "aarch64", target_feature(enable = "neon"))]

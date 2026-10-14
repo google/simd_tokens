@@ -6,10 +6,11 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::BTreeSet;
+
 #[cfg(proc_macro)]
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Expr, Lit, Meta};
 
 /// Maps a single `target_feature` string to its corresponding trait bound path.
 ///
@@ -78,29 +79,46 @@ fn feature_to_trait(
 
 /// Extracts all `target_feature` names enabled on the function.
 ///
-/// Parses `#[target_feature(enable = "feature1,feature2,...")]` attributes and
-/// returns the sorted set of individual features (empty if there are none).
-fn extract_features(attrs: &[syn::Attribute]) -> std::collections::BTreeSet<String> {
-    let mut features = std::collections::BTreeSet::new();
+/// Parses `#[target_feature(enable = "feature1,feature2", enable = "feature3", ...)]`
+/// attributes and returns the sorted set of individual features (empty if there are none).
+fn extract_features(attrs: &[syn::Attribute]) -> Result<BTreeSet<String>, syn::Error> {
+    let mut features = BTreeSet::new();
     for attr in attrs {
         if !attr.path().is_ident("target_feature") {
             continue;
         }
-        let Meta::List(meta_list) = &attr.meta else {
-            continue;
-        };
-        let Ok(name_value) = syn::parse2::<syn::MetaNameValue>(meta_list.tokens.clone()) else {
-            continue;
-        };
-        if !name_value.path.is_ident("enable") {
-            continue;
+        let mut attr_found_any = false;
+        attr.parse_nested_meta(|meta| {
+            if !meta.path.is_ident("enable") {
+                return Err(meta.error("expected `enable = \"...\"` in #[target_feature]"));
+            }
+            let value = meta.value()?;
+            let lit_str: syn::LitStr = value.parse()?;
+            let mut found_any = false;
+            for f in lit_str.value().split(',') {
+                let f = f.trim();
+                if !f.is_empty() {
+                    features.insert(f.to_string());
+                    found_any = true;
+                }
+            }
+            if !found_any {
+                return Err(syn::Error::new_spanned(
+                    lit_str,
+                    "empty feature list in #[target_feature]",
+                ));
+            }
+            attr_found_any = true;
+            Ok(())
+        })?;
+        if !attr_found_any {
+            return Err(syn::Error::new_spanned(
+                attr,
+                "expected `enable = \"...\"` in #[target_feature]",
+            ));
         }
-        let Expr::Lit(syn::ExprLit { lit: Lit::Str(lit_str), .. }) = &name_value.value else {
-            continue;
-        };
-        features.extend(lit_str.value().split(',').map(|s| s.trim().to_string()));
     }
-    features
+    Ok(features)
 }
 
 /// Parsed attribute options for the `#[simd_entry]` attribute macro.
@@ -460,7 +478,7 @@ fn simd_entry_impl(
 
     // ── Collect features and split attributes ────────────────────────────────
 
-    let features = extract_features(&attrs);
+    let features = extract_features(&attrs)?;
 
     if features.is_empty() && !options.allow_no_target_features {
         return Err(syn::Error::new_spanned(
@@ -694,7 +712,18 @@ fn simd_entry_impl(
         #allow_unused_unsafe
         #allow_deprecated
         #vis #wrapper_sig {
-            // SAFETY: the token parameter proves the required CPU features are present.
+            // SAFETY: Calling the generated inner function (`inner_name`) requires that (1) every
+            // CPU target feature enabled on it via `#[target_feature(enable = ...)]` is supported
+            // by the current CPU at runtime, and (2) any additional `unsafe fn` preconditions on
+            // the inner function (when `still_unsafe` is set) hold. Obligation (1) is satisfied
+            // because the wrapper's token parameter is passed by value and bounded by every trait
+            // in `trait_bounds` (extracted from all `#[target_feature]` attributes on the
+            // function), and each feature marker trait's `# Safety` contract guarantees that a
+            // value of the implementing token type can only exist when that CPU feature is
+            // supported for the lifetime of the process. Obligation (2) is satisfied because the
+            // inner function is only permitted to be `unsafe fn` when `still_unsafe` is enabled, in
+            // which case the wrapper signature is itself `unsafe fn` and forwards its caller's
+            // safety preconditions directly to the inner call with no intervening state changes.
             unsafe { #call }
         }
     })
@@ -709,7 +738,7 @@ mod tests {
     #[gtest]
     fn test_extract_features_empty() {
         let attrs: Vec<Attribute> = vec![];
-        let features = extract_features(&attrs);
+        let features = extract_features(&attrs).unwrap();
         expect_true!(features.is_empty());
     }
 
@@ -719,16 +748,15 @@ mod tests {
             syn::parse_quote! { #[inline] },
             syn::parse_quote! { #[cfg(target_arch = "x86_64")] },
         ];
-        let features = extract_features(&attrs);
+        let features = extract_features(&attrs).unwrap();
         expect_true!(features.is_empty());
     }
 
     #[gtest]
     fn test_extract_features_single() {
         let attrs: Vec<Attribute> = vec![syn::parse_quote! { #[target_feature(enable = "avx2")] }];
-        let features = extract_features(&attrs);
-        let expected =
-            ["avx2"].iter().map(|s| s.to_string()).collect::<std::collections::BTreeSet<_>>();
+        let features = extract_features(&attrs).unwrap();
+        let expected: BTreeSet<String> = ["avx2"].iter().map(|s| s.to_string()).collect();
         expect_eq!(features, expected);
     }
 
@@ -736,11 +764,21 @@ mod tests {
     fn test_extract_features_multiple_comma_separated() {
         let attrs: Vec<Attribute> =
             vec![syn::parse_quote! { #[target_feature(enable = "avx2,fma,sse4.1")] }];
-        let features = extract_features(&attrs);
-        let expected = ["avx2", "fma", "sse4.1"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<std::collections::BTreeSet<_>>();
+        let features = extract_features(&attrs).unwrap();
+        let expected: BTreeSet<String> =
+            ["avx2", "fma", "sse4.1"].iter().map(|s| s.to_string()).collect();
+        expect_eq!(features, expected);
+    }
+
+    #[gtest]
+    fn test_extract_features_multiple_enable_clauses_and_trailing_comma() {
+        let attrs: Vec<Attribute> = vec![
+            syn::parse_quote! { #[target_feature(enable = "avx2", enable = "fma")] },
+            syn::parse_quote! { #[target_feature(enable = "sse4.1",)] },
+        ];
+        let features = extract_features(&attrs).unwrap();
+        let expected: BTreeSet<String> =
+            ["avx2", "fma", "sse4.1"].iter().map(|s| s.to_string()).collect();
         expect_eq!(features, expected);
     }
 
@@ -751,32 +789,25 @@ mod tests {
             syn::parse_quote! { #[inline] },
             syn::parse_quote! { #[target_feature(enable = "fma,sse2")] },
         ];
-        let features = extract_features(&attrs);
-        let expected = ["avx2", "fma", "sse2"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<std::collections::BTreeSet<_>>();
+        let features = extract_features(&attrs).unwrap();
+        let expected: BTreeSet<String> =
+            ["avx2", "fma", "sse2"].iter().map(|s| s.to_string()).collect();
         expect_eq!(features, expected);
     }
 
     #[gtest]
-    fn test_extract_features_malformed_ignored() {
-        let attrs: Vec<Attribute> = vec![
-            // Not target_feature
-            syn::parse_quote! { #[inline] },
-            // Wrong path inside list
+    fn test_extract_features_malformed_rejected() {
+        for bad_attr in [
             syn::parse_quote! { #[target_feature(disable = "avx2")] },
-            // Wrong value type
             syn::parse_quote! { #[target_feature(enable = 123)] },
-            // Not a list
             syn::parse_quote! { #[target_feature = "enable = avx2"] },
-            // Valid one should still be extracted
-            syn::parse_quote! { #[target_feature(enable = "neon")] },
-        ];
-        let features = extract_features(&attrs);
-        let expected =
-            ["neon"].iter().map(|s| s.to_string()).collect::<std::collections::BTreeSet<_>>();
-        expect_eq!(features, expected);
+            syn::parse_quote! { #[target_feature()] },
+            syn::parse_quote! { #[target_feature(enable = "")] },
+            syn::parse_quote! { #[target_feature(enable = " , ")] },
+        ] {
+            let attrs: Vec<Attribute> = vec![bad_attr];
+            expect_true!(extract_features(&attrs).is_err());
+        }
     }
 
     #[gtest]

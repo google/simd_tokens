@@ -34,7 +34,11 @@ macro_rules! __define_token {
     ($(#[$meta:meta])* $name:ident, $arch_cfg:meta, $detect_macro:ident, $($feature:tt),+ $(,)?) => {
         $(#[$meta])*
         #[derive(Copy, Clone, Debug)]
-        pub struct $name{
+        pub struct $name {
+            // Safety invariant: An instance of `$name` may only be constructed after verifying
+            // (either at compile time via `cfg(target_feature = ...)` or at runtime via `std::arch`
+            // CPU feature detection) that all target features required by `$name` are supported by
+            // the current CPU for the lifetime of the process.
             _private: (),
         }
 
@@ -94,6 +98,8 @@ macro_rules! __define_token {
             /// process, so this needs no allocation or synchronization.
             #[inline(always)]
             pub const fn as_static(self) -> &'static Self {
+                // Receiving `self` by value proves the `_private` safety invariant already holds
+                // for the lifetime of the process.
                 &Self { _private: () }
             }
         }
