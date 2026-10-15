@@ -40,6 +40,8 @@ and stores.
         rejects an `unsafe fn` unless you write `#[simd_entry(still_unsafe)]`,
         which is only for functions with further safety preconditions (callers
         then still need `unsafe`).
+    -   By convention, place the token argument (`token: impl SimdToken`) as the
+        last argument.
     -   `#[simd_entry]` generates a safe wrapper whose token bound requires the
         matching feature trait (`SimdToken + Avx2`).
 
