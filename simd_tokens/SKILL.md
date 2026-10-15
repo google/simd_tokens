@@ -92,7 +92,7 @@ and stores.
     internally by another kernel, use `#[simd_entry(expose_raw_variant)]`. This
     exposes a token-free `<fn>_raw` helper safe to call from matching
     `#[target_feature]` functions. (If a helper is *never* called with a token,
-    do not use `#[simd_entry]` at all; see Antipattern 3).
+    do not use `#[simd_entry]` at all; see Antipatterns 3 and 4).
 
 --------------------------------------------------------------------------------
 
@@ -169,9 +169,11 @@ pub trait Backend {
 }
 
 impl Backend for Avx2Token {
+    #[inline(always)]
     fn process(&self, data: &mut [f32]) { process_avx2(data, *self); }
 }
 impl Backend for ScalarToken {
+    #[inline(always)]
     fn process(&self, data: &mut [f32]) { process_scalar(data); }
 }
 
@@ -212,6 +214,7 @@ need `#[simd_entry]`. Keep it as a plain, safe `#[target_feature]` function:
 
 ```rust
 // ✅ CORRECT: internal helper is just a standard target_feature function
+#[inline]
 #[target_feature(enable = "avx2")]
 fn internal_butterfly(data: &mut [f32]) { ... }
 
@@ -228,6 +231,62 @@ not declare such helpers `unsafe fn` or wrap their calls in `unsafe`.
 
 Only use `expose_raw_variant` when a function is **both** an external
 token-entrypoint and called internally by another kernel.
+
+--------------------------------------------------------------------------------
+
+### 4. Non-`#[simd_entry]` Leaf Helpers: `#[inline(always)]` vs. `#[target_feature]`
+
+Choose inlining and feature annotations on non-`#[simd_entry]` leaf helpers
+based on whether the helper calls SIMD intrinsics:
+
+-   **Pure-Rust leaf helpers (no intrinsics)**: For slice/chunk extraction,
+    scalar math, or autovectorizable loops over `[T; N]`, use
+    `#[inline(always)]` with **no** `#[target_feature]` and **no**
+    `#[simd_entry]`. Because baseline features are a subset of every caller's
+    features, the helper is safe to call from all contexts (`scalar`, `avx2`,
+    `avx512`, `neon`), and LLVM inlines a copy into each caller to compile and
+    vectorize under that caller's target features:
+
+    ```rust
+    // ✅ CORRECT: no intrinsics -> #[inline(always)], reusable everywhere
+    #[inline(always)]
+    fn mix_block(a: &[f32; 8], b: &[f32; 8]) -> [f32; 8] {
+        std::array::from_fn(|i| a[i] + b[i])
+    }
+    ```
+
+-   **Intrinsic-using leaf helpers (`core::arch` / `safe_unaligned_simd`)**: If
+    a leaf calls *any* SIMD intrinsic — even baseline ones like `sse2` on
+    `x86_64` or `neon` on `aarch64` — annotate it with **`#[inline]` +
+    `#[target_feature(enable = "...")]`** (never `#[inline(always)]`):
+
+    -   ❌ Do **not** omit `#[target_feature]` and rely on `#[inline(always)]`:
+        `rustc` checks `#[target_feature]` safety per-function before inlining,
+        so calling any intrinsic without a matching `#[target_feature]` fails
+        with `E0133` (even when the feature is enabled in the build config).
+        Wrapping calls in `unsafe` inside a featureless safe `fn` is unsound and
+        violates `#![forbid(unsafe_code)]`.
+    -   ❌ Do **not** combine `#[inline(always)]` with `#[target_feature]`:
+        `rustc` currently rejects this combination as a hard error.
+    -   ✅ **Reusing across multiple SIMD tiers**: Annotate the helper with the
+        **narrowest** feature set it needs (e.g., `#[inline]` +
+        `#[target_feature(enable = "avx2")]`). Both `rustc`'s safety checker and
+        LLVM's inliner operate on feature supersets, so higher-capability
+        kernels (e.g., `#[target_feature(enable = "avx512f")]`, which implies
+        `avx2`) can call and inline it directly with no token and no `unsafe`.
+
+    > [!NOTE] Upstream Rust is lifting the restriction on combining
+    > `#[inline(always)]` with `#[target_feature]` in
+    > [rust-lang/rust#162460](https://github.com/rust-lang/rust/pull/162460).
+    > Once that PR is in stable Rust, `#[inline(always)]` will be usable
+    > directly on `#[target_feature]` leaf helpers — **update this skill once it
+    > is available in stable Rust**.
+
+-   **Trait dispatch methods on tokens** (`impl Backend for Avx2Token`, see
+    Antipattern 2): Use `#[inline(always)]` with **no** `#[target_feature]` on
+    the trait method and forward `*self` to the `#[simd_entry]` function. Never
+    put `#[target_feature]` on generic or trait methods (`rustc` refuses to
+    inline them, causing full ABI transitions in hot loops).
 
 --------------------------------------------------------------------------------
 
