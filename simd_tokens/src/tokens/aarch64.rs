@@ -8,21 +8,61 @@
 
 //! AArch64 SIMD tokens.
 
+/// Defines a custom AArch64 SIMD capability token.
+///
+/// Use this when a kernel needs a feature combination that the predefined tokens don't cover.
+/// The token implements the feature traits of exactly the listed features, so list every feature
+/// that the `#[target_feature(enable = ...)]` of your kernels names.
+///
+/// The token is private unless a visibility is given.
+///
+/// # Example
+///
+/// ```
+/// #![forbid(unsafe_code)]
+/// use simd_tokens::{define_aarch64_token, simd_entry, SimdToken};
+///
+/// define_aarch64_token!(
+///     /// Proof that NEON + AES + SHA2 are available (Armv8.0-A Crypto).
+///     pub NeonCryptoToken,
+///     "neon",
+///     "aes",
+///     "sha2",
+/// );
+///
+/// #[cfg(target_arch = "aarch64")]
+/// #[simd_entry]
+/// #[target_feature(enable = "neon,aes")]
+/// fn transform(data: &mut [u8; 16], token: impl SimdToken) {
+///     let _ = data;
+/// }
+/// ```
+#[macro_export]
 macro_rules! define_aarch64_token {
-    ($(#[$meta:meta])* $name:ident, $($feature:tt),+ $(,)?) => {
-        __define_token!($(#[$meta])* $name, target_arch = "aarch64", is_aarch64_feature_detected, $($feature),+);
+    ($(#[doc = $doc:expr])* $vis:vis $name:ident, $($feature:tt),+ $(,)?) => {
+        $crate::__simd_tokens_define_token!(
+            $(#[doc = $doc])*
+            $vis $name,
+            target_arch = "aarch64",
+            is_aarch64_feature_detected,
+            __simd_tokens_impl_aarch64_feature_trait,
+            $($feature),+
+        );
+    };
+    ($(#[$attr:meta])* $vis:vis $name:ident, $($feature:tt),+ $(,)?) => {
+        ::core::compile_error!("define_aarch64_token! accepts only doc comments as attributes");
     };
 }
 
 define_aarch64_token!(
     /// Proof that NEON is available.
-    NeonToken,
+    pub NeonToken,
     "neon",
 );
 
 define_aarch64_token!(
     /// Proof that NEON + Dot Product (and v8.2-A SIMD extensions) are available.
-    NeonDotprodToken,
+    pub NeonDotprodToken,
     "neon",
     "rdm",
     "dotprod",
@@ -33,7 +73,7 @@ define_aarch64_token!(
 
 define_aarch64_token!(
     /// Proof that NEON + Int8 Matrix Multiply (and v8.6-A SIMD extensions) are available.
-    NeonI8mmToken,
+    pub NeonI8mmToken,
     "neon",
     "rdm",
     "dotprod",

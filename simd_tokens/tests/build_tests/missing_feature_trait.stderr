@@ -1,21 +1,16 @@
-error[E0277]: the trait bound `NoSimdToken: Sse` is not satisfied
-  --> tests/build_tests/missing_feature_trait.rs:31:30
+error[E0277]: the trait bound `ScalarToken: Sse` is not satisfied
+  --> tests/build_tests/missing_feature_trait.rs:21:30
    |
-31 |     let _ = require_sse(1.0, token);
-   |             -----------      ^^^^^ unsatisfied trait bound
+21 |     let _ = require_sse(1.0, ScalarToken);
+   |             -----------      ^^^^^^^^^^^ the trait `Sse` is not implemented for `ScalarToken`
    |             |
    |             required by a bound introduced by this call
    |
-help: the trait `Sse` is not implemented for `NoSimdToken`
-  --> tests/build_tests/missing_feature_trait.rs:12:1
-   |
-12 | struct NoSimdToken;
-   | ^^^^^^^^^^^^^^^^^^
 help: the following other types implement trait `Sse`
-  --> src/features/x86.rs
+  --> src/features/mod.rs
    |
-   |           unsafe impl $crate::features::Sse for $token {}
-   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |           unsafe impl $crate::features::$trait for $token {}
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |           |
    |           `Avx2Token`
    |           `Avx512Token`
@@ -26,7 +21,7 @@ help: the following other types implement trait `Sse`
    |
    | / define_x86_token!(
    | |     /// Proof that SSE + SSE2 are available (x86-64-v1 baseline level).
-   | |     Sse2Token,
+   | |     pub Sse2Token,
    | |     "sse",
    | |     "sse2",
    | | );
@@ -34,7 +29,7 @@ help: the following other types implement trait `Sse`
    |
    | / define_x86_token!(
    | |     /// Proof that SSE4.2 + POPCNT are available (x86-64-v2 level).
-   | |     Sse42Token,
+   | |     pub Sse42Token,
    | |     "sse",
 ...  |
    | |     "cmpxchg16b",
@@ -43,7 +38,7 @@ help: the following other types implement trait `Sse`
    |
    | / define_x86_token!(
    | |     /// Proof that x86-64-v3 (AVX2 + FMA + BMI1/2 + F16C + LZCNT) + PCLMULQDQ + AES are available.
-   | |     Avx2Token,
+   | |     pub Avx2Token,
    | |     "sse",
 ...  |
    | |     "aes",
@@ -52,18 +47,18 @@ help: the following other types implement trait `Sse`
    |
    | / define_x86_token!(
    | |     /// Proof that AVX-512 (F + CD + VL + DQ + BW) is available (x86-64-v4 level).
-   | |     Avx512Token,
+   | |     pub Avx512Token,
    | |     "sse",
 ...  |
    | |     "avx512vl",
    | | );
    | |_- in this macro invocation
 note: required by a bound in `require_sse`
-  --> tests/build_tests/missing_feature_trait.rs:20:1
+  --> tests/build_tests/missing_feature_trait.rs:11:1
    |
-20 | #[simd_entry]
+11 | #[simd_entry]
    | ^^^^^^^^^^^^^ required by this bound in `require_sse`
 ...
-23 | fn require_sse(a: f32, token: impl SimdToken) -> f32 {
+14 | fn require_sse(a: f32, token: impl SimdToken) -> f32 {
    |    ----------- required by a bound in this function
-   = note: this error originates in the macro `$crate::features::__impl_feature_trait` which comes from the expansion of the attribute macro `simd_entry` (in Nightly builds, run with -Z macro-backtrace for more info)
+   = note: this error originates in the macro `$crate::__simd_tokens_impl_feature_trait` which comes from the expansion of the attribute macro `simd_entry` (in Nightly builds, run with -Z macro-backtrace for more info)

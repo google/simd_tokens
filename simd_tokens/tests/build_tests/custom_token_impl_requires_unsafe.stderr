@@ -1,0 +1,22 @@
+error: usage of an `unsafe` block
+  --> tests/build_tests/custom_token_impl_requires_unsafe.rs:19:78
+   |
+19 |   simd_tokens::__simd_tokens_impl_x86_feature_trait!(BaselineToken, "avx512f", unsafe {
+   |  ______________________________________________________________________________^
+20 | |     simd_tokens::__private::Proof::<BaselineToken>::new()
+21 | | });
+   | |_^
+   |
+note: the lint level is defined here
+  --> tests/build_tests/custom_token_impl_requires_unsafe.rs:9:11
+   |
+ 9 | #![forbid(unsafe_code)]
+   |           ^^^^^^^^^^^
+
+error[E0133]: call to unsafe function `simd_tokens::__private::Proof::<T>::new` is unsafe and requires unsafe block
+  --> tests/build_tests/custom_token_impl_requires_unsafe.rs:26:5
+   |
+26 |     simd_tokens::__private::Proof::<BaselineToken>::new()
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ call to unsafe function
+   |
+   = note: consult the function's documentation for information on how to avoid undefined behavior

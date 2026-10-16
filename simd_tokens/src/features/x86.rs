@@ -109,108 +109,117 @@ pub unsafe trait Gfni {}
 /// AVX-512 FP16 support.
 pub unsafe trait Avx512fp16 {}
 
-macro_rules! __impl_feature_trait {
-    ($token:ident, "sse") => {
-        unsafe impl $crate::features::Sse for $token {}
+/// Internal helper macro for [`crate::define_x86_token!`]. Do not call
+/// directly.
+///
+/// Even though this macro is not part of the public API and must not be called
+/// directly, `$proof` is required nonetheless to ensure soundness.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __simd_tokens_impl_x86_feature_trait {
+    ($token:ident, "sse", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Sse, $token, $proof);
     };
-    ($token:ident, "sse2") => {
-        unsafe impl $crate::features::Sse2 for $token {}
+    ($token:ident, "sse2", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Sse2, $token, $proof);
     };
-    ($token:ident, "sse3") => {
-        unsafe impl $crate::features::Sse3 for $token {}
+    ($token:ident, "sse3", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Sse3, $token, $proof);
     };
-    ($token:ident, "ssse3") => {
-        unsafe impl $crate::features::Ssse3 for $token {}
+    ($token:ident, "ssse3", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Ssse3, $token, $proof);
     };
-    ($token:ident, "sse4.1") => {
-        unsafe impl $crate::features::Sse41 for $token {}
+    ($token:ident, "sse4.1", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Sse41, $token, $proof);
     };
-    ($token:ident, "sse4.2") => {
-        unsafe impl $crate::features::Sse42 for $token {}
+    ($token:ident, "sse4.2", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Sse42, $token, $proof);
     };
-    ($token:ident, "popcnt") => {
-        unsafe impl $crate::features::Popcnt for $token {}
+    ($token:ident, "popcnt", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Popcnt, $token, $proof);
     };
-    ($token:ident, "cmpxchg16b") => {
-        unsafe impl $crate::features::Cmpxchg16b for $token {}
+    ($token:ident, "cmpxchg16b", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Cmpxchg16b, $token, $proof);
     };
-    ($token:ident, "pclmulqdq") => {
-        unsafe impl $crate::features::Pclmulqdq for $token {}
+    ($token:ident, "pclmulqdq", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Pclmulqdq, $token, $proof);
     };
-    ($token:ident, "aes") => {
-        unsafe impl $crate::features::Aes for $token {}
+    ($token:ident, "aes", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Aes, $token, $proof);
     };
-    ($token:ident, "avx") => {
-        unsafe impl $crate::features::Avx for $token {}
+    ($token:ident, "avx", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx, $token, $proof);
     };
-    ($token:ident, "avx2") => {
-        unsafe impl $crate::features::Avx2 for $token {}
+    ($token:ident, "avx2", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx2, $token, $proof);
     };
-    ($token:ident, "fma") => {
-        unsafe impl $crate::features::Fma for $token {}
+    ($token:ident, "fma", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Fma, $token, $proof);
     };
-    ($token:ident, "bmi1") => {
-        unsafe impl $crate::features::Bmi1 for $token {}
+    ($token:ident, "bmi1", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Bmi1, $token, $proof);
     };
-    ($token:ident, "bmi2") => {
-        unsafe impl $crate::features::Bmi2 for $token {}
+    ($token:ident, "bmi2", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Bmi2, $token, $proof);
     };
-    ($token:ident, "f16c") => {
-        unsafe impl $crate::features::F16c for $token {}
+    ($token:ident, "f16c", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(F16c, $token, $proof);
     };
-    ($token:ident, "lzcnt") => {
-        unsafe impl $crate::features::Lzcnt for $token {}
+    ($token:ident, "lzcnt", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Lzcnt, $token, $proof);
     };
-    ($token:ident, "movbe") => {
-        unsafe impl $crate::features::Movbe for $token {}
+    ($token:ident, "movbe", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Movbe, $token, $proof);
     };
-    ($token:ident, "vpclmulqdq") => {
-        unsafe impl $crate::features::Vpclmulqdq for $token {}
+    ($token:ident, "vpclmulqdq", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Vpclmulqdq, $token, $proof);
     };
-    ($token:ident, "vaes") => {
-        unsafe impl $crate::features::Vaes for $token {}
+    ($token:ident, "vaes", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Vaes, $token, $proof);
     };
-    ($token:ident, "avx512f") => {
-        unsafe impl $crate::features::Avx512f for $token {}
+    ($token:ident, "avx512f", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512f, $token, $proof);
     };
-    ($token:ident, "avx512bw") => {
-        unsafe impl $crate::features::Avx512bw for $token {}
+    ($token:ident, "avx512bw", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512bw, $token, $proof);
     };
-    ($token:ident, "avx512cd") => {
-        unsafe impl $crate::features::Avx512cd for $token {}
+    ($token:ident, "avx512cd", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512cd, $token, $proof);
     };
-    ($token:ident, "avx512dq") => {
-        unsafe impl $crate::features::Avx512dq for $token {}
+    ($token:ident, "avx512dq", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512dq, $token, $proof);
     };
-    ($token:ident, "avx512vl") => {
-        unsafe impl $crate::features::Avx512vl for $token {}
+    ($token:ident, "avx512vl", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512vl, $token, $proof);
     };
-    ($token:ident, "avx512vpopcntdq") => {
-        unsafe impl $crate::features::Avx512vpopcntdq for $token {}
+    ($token:ident, "avx512vpopcntdq", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512vpopcntdq, $token, $proof);
     };
-    ($token:ident, "avx512ifma") => {
-        unsafe impl $crate::features::Avx512ifma for $token {}
+    ($token:ident, "avx512ifma", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512ifma, $token, $proof);
     };
-    ($token:ident, "avx512vbmi") => {
-        unsafe impl $crate::features::Avx512vbmi for $token {}
+    ($token:ident, "avx512vbmi", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512vbmi, $token, $proof);
     };
-    ($token:ident, "avx512vbmi2") => {
-        unsafe impl $crate::features::Avx512vbmi2 for $token {}
+    ($token:ident, "avx512vbmi2", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512vbmi2, $token, $proof);
     };
-    ($token:ident, "avx512bitalg") => {
-        unsafe impl $crate::features::Avx512bitalg for $token {}
+    ($token:ident, "avx512bitalg", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512bitalg, $token, $proof);
     };
-    ($token:ident, "avx512vnni") => {
-        unsafe impl $crate::features::Avx512vnni for $token {}
+    ($token:ident, "avx512vnni", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512vnni, $token, $proof);
     };
-    ($token:ident, "gfni") => {
-        unsafe impl $crate::features::Gfni for $token {}
+    ($token:ident, "gfni", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Gfni, $token, $proof);
     };
-    ($token:ident, "avx512fp16") => {
-        unsafe impl $crate::features::Avx512fp16 for $token {}
+    ($token:ident, "avx512fp16", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Avx512fp16, $token, $proof);
     };
-    ($token:ident, $other:tt) => {
-        compile_error!(concat!("Feature not supported on this architecture: ", $other));
+    ($token:ident, $other:tt, $proof:expr) => {
+        ::core::compile_error!(::core::concat!(
+            "define_x86_token! does not recognize x86/x86_64 feature ",
+            ::core::stringify!($other),
+        ));
     };
 }
-pub(crate) use __impl_feature_trait;

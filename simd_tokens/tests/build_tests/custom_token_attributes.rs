@@ -6,12 +6,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! Feature marker traits for unsupported SIMD architectures.
+use simd_tokens::define_x86_token;
 
-macro_rules! __impl_feature_trait {
-    ($token:ident, $other:tt) => {
-        compile_error!(concat!("Feature not supported on this architecture: ", $other));
-    };
-}
+// Attributes other than doc comments are rejected, so that derives and
+// attribute macros cannot change the generated struct.
+define_x86_token!(
+    /// Doc comments are fine.
+    #[derive(Default)]
+    DefaultToken,
+    "avx512f",
+);
 
-pub(crate) use __impl_feature_trait;
+fn main() {}

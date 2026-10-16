@@ -45,42 +45,51 @@ pub unsafe trait I8mm {}
 /// BFloat16 instructions.
 pub unsafe trait Bf16 {}
 
-macro_rules! __impl_feature_trait {
-    ($token:ident, "neon") => {
-        unsafe impl $crate::features::Neon for $token {}
+/// Internal helper macro for [`crate::define_aarch64_token!`]. Do not call
+/// directly.
+///
+/// Even though this macro is not part of the public API and must not be called
+/// directly, `$proof` is required nonetheless to ensure soundness.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __simd_tokens_impl_aarch64_feature_trait {
+    ($token:ident, "neon", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Neon, $token, $proof);
     };
-    ($token:ident, "rdm") => {
-        unsafe impl $crate::features::Rdm for $token {}
+    ($token:ident, "rdm", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Rdm, $token, $proof);
     };
-    ($token:ident, "dotprod") => {
-        unsafe impl $crate::features::Dotprod for $token {}
+    ($token:ident, "dotprod", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Dotprod, $token, $proof);
     };
-    ($token:ident, "fp16") => {
-        unsafe impl $crate::features::Fp16 for $token {}
+    ($token:ident, "fp16", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Fp16, $token, $proof);
     };
-    ($token:ident, "sha2") => {
-        unsafe impl $crate::features::Sha2 for $token {}
+    ($token:ident, "sha2", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Sha2, $token, $proof);
     };
-    ($token:ident, "aes") => {
-        unsafe impl $crate::features::Aes for $token {}
+    ($token:ident, "aes", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Aes, $token, $proof);
     };
-    ($token:ident, "fhm") => {
-        unsafe impl $crate::features::Fhm for $token {}
+    ($token:ident, "fhm", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Fhm, $token, $proof);
     };
-    ($token:ident, "fcma") => {
-        unsafe impl $crate::features::Fcma for $token {}
+    ($token:ident, "fcma", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Fcma, $token, $proof);
     };
-    ($token:ident, "sha3") => {
-        unsafe impl $crate::features::Sha3 for $token {}
+    ($token:ident, "sha3", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Sha3, $token, $proof);
     };
-    ($token:ident, "i8mm") => {
-        unsafe impl $crate::features::I8mm for $token {}
+    ($token:ident, "i8mm", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(I8mm, $token, $proof);
     };
-    ($token:ident, "bf16") => {
-        unsafe impl $crate::features::Bf16 for $token {}
+    ($token:ident, "bf16", $proof:expr) => {
+        $crate::__simd_tokens_impl_feature_trait!(Bf16, $token, $proof);
     };
-    ($token:ident, $other:tt) => {
-        compile_error!(concat!("Feature not supported on this architecture: ", $other));
+    ($token:ident, $other:tt, $proof:expr) => {
+        ::core::compile_error!(::core::concat!(
+            "define_aarch64_token! does not recognize aarch64 feature ",
+            ::core::stringify!($other),
+        ));
     };
 }
-pub(crate) use __impl_feature_trait;
