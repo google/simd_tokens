@@ -445,3 +445,141 @@ fn test_as_static_dyn_dispatch() {
 
     expect_eq!(select_backend().compute(2.0, 3.0), 5.0);
 }
+
+// ---------------------------------------------------------------------------
+// Tests verifying `define_x86_token!` and `define_aarch64_token!` under
+// `#[forbid(unsafe_code)]` and `#[deny(unreachable_pub, missing_docs)]`
+// ---------------------------------------------------------------------------
+
+#[forbid(unsafe_code)]
+#[deny(unreachable_pub, missing_docs)]
+mod custom_tokens {
+    use googletest::prelude::*;
+    use simd_tokens::{define_aarch64_token, define_x86_token, simd_entry, SimdToken};
+
+    // Private custom token with baseline x86 features.
+    define_x86_token!(PrivateSse2Token, "sse", "sse2");
+
+    // Crate-visible custom token with extra features not on any built-in token
+    // (`vaes`, `vpclmulqdq`, `gfni`, `avx512vbmi`, `avx512vnni`).
+    define_x86_token!(
+        /// Custom Ice Lake AVX-512 token.
+        pub(crate) IcelakeAvx512Token,
+        "avx2",
+        "vaes",
+        "vpclmulqdq",
+        "gfni",
+        "avx512f",
+        "avx512bw",
+        "avx512vl",
+        "avx512vbmi",
+        "avx512vbmi2",
+        "avx512vnni",
+        "avx512bitalg",
+        "avx512vpopcntdq",
+    );
+
+    // Parent-visible custom AArch64 token (Armv8.0-A Crypto without DotProd/FP16).
+    define_aarch64_token!(
+        /// Custom Armv8.0-A Crypto token.
+        pub(super) NeonCryptoToken,
+        "neon",
+        "aes",
+        "sha2",
+    );
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[simd_entry]
+    #[target_feature(enable = "sse,sse2")]
+    fn add_sse2(a: f32, b: f32, token: impl SimdToken) -> f32 {
+        a + b
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[simd_entry]
+    #[target_feature(enable = "avx512f,avx512bw,avx512vbmi,avx512vnni,vaes,vpclmulqdq,gfni")]
+    fn icelake_kernel(a: f32, b: f32, token: impl SimdToken) -> f32 {
+        a * b
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[simd_entry]
+    #[target_feature(enable = "neon")]
+    fn add_neon(a: f32, b: f32, token: impl SimdToken) -> f32 {
+        a + b
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[simd_entry]
+    #[target_feature(enable = "neon,aes,sha2")]
+    fn neon_crypto_kernel(a: f32, b: f32, token: impl SimdToken) -> f32 {
+        a * b
+    }
+
+    #[gtest]
+    fn test_custom_tokens_forbid_unsafe() {
+        expect_eq!(core::mem::size_of::<PrivateSse2Token>(), 0);
+        expect_eq!(core::mem::size_of::<IcelakeAvx512Token>(), 0);
+        expect_eq!(core::mem::size_of::<NeonCryptoToken>(), 0);
+
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            let token = PrivateSse2Token::try_new().expect("SSE2 is baseline on x86_64");
+            let static_ref: &'static PrivateSse2Token = token.as_static();
+            expect_eq!(add_sse2(4.0, 5.0, *static_ref), 9.0);
+            expect_that!(NeonCryptoToken::try_new(), none());
+
+            if let Some(icelake) = IcelakeAvx512Token::try_new() {
+                expect_eq!(icelake_kernel(3.0, 7.0, icelake), 21.0);
+            }
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        {
+            define_aarch64_token!(PrivateNeonToken, "neon");
+            let token = PrivateNeonToken::try_new().expect("NEON is baseline on aarch64");
+            let static_ref: &'static PrivateNeonToken = token.as_static();
+            expect_eq!(add_neon(4.0, 5.0, *static_ref), 9.0);
+            expect_that!(PrivateSse2Token::try_new(), none());
+
+            if let Some(crypto) = NeonCryptoToken::try_new() {
+                expect_eq!(neon_crypto_kernel(3.0, 7.0, crypto), 21.0);
+            }
+        }
+    }
+
+    // These features are usually not enabled at compile time, so `try_new()`
+    // takes the runtime path: the first call runs the detection, the second one
+    // reads the cached result. Both must agree with std's detection.
+    #[gtest]
+    fn test_custom_tokens_runtime_detection() {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            use std::arch::is_x86_feature_detected;
+
+            define_x86_token!(Avx2OnlyToken, "avx2");
+            define_x86_token!(VbmiToken, "avx512f", "avx512vbmi", "avx512vbmi2");
+
+            let avx2 = is_x86_feature_detected!("avx2");
+            expect_eq!(Avx2OnlyToken::try_new().is_some(), avx2);
+            expect_eq!(Avx2OnlyToken::try_new().is_some(), avx2);
+
+            let vbmi = is_x86_feature_detected!("avx512f")
+                && is_x86_feature_detected!("avx512vbmi")
+                && is_x86_feature_detected!("avx512vbmi2");
+            expect_eq!(VbmiToken::try_new().is_some(), vbmi);
+            expect_eq!(VbmiToken::try_new().is_some(), vbmi);
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        {
+            use std::arch::is_aarch64_feature_detected;
+
+            define_aarch64_token!(Sha3Token, "neon", "sha3");
+
+            let sha3 = is_aarch64_feature_detected!("neon") && is_aarch64_feature_detected!("sha3");
+            expect_eq!(Sha3Token::try_new().is_some(), sha3);
+            expect_eq!(Sha3Token::try_new().is_some(), sha3);
+        }
+    }
+}
