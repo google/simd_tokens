@@ -179,6 +179,35 @@ the previous levels for that architecture.
 
 <!-- mdformat on -->
 
+### Custom Tokens
+
+When a kernel needs a feature combination that the predefined tokens don't cover
+(for example AVX-512 extensions such as `avx512vbmi` or `avx512vnni`), define
+your own token with `define_x86_token!` or `define_aarch64_token!`. Neither
+requires `unsafe`, so both work in `#![forbid(unsafe_code)]` crates:
+
+```rust
+use simd_tokens::{define_x86_token, simd_entry, SimdToken};
+
+define_x86_token!(
+    /// Proof that AVX2 + VAES + VPCLMULQDQ are available.
+    pub Avx2VaesToken,
+    "avx2",
+    "vaes",
+    "vpclmulqdq",
+);
+
+#[simd_entry]
+#[target_feature(enable = "avx2,vaes,vpclmulqdq")]
+fn encrypt(blocks: &mut [[u8; 32]], token: impl SimdToken) {
+    // ...
+}
+```
+
+List every feature that the `#[target_feature(enable = ...)]` of your kernels
+names; implied features are not added. Custom tokens are private unless you give
+a visibility, and only doc comments are accepted as attributes.
+
 ### Dispatch Example
 
 A common pattern is to try tokens from most to least capable and fall back to

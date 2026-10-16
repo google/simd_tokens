@@ -1,0 +1,8 @@
+error[E0308]: mismatched types
+  --> tests/build_tests/custom_token_forged.rs:21:51
+   |
+21 |         let _forged = Avx512VbmiToken { _private: sse2._private };
+   |                                                   ^^^^^^^^^^^^^ expected `Proof<Avx512VbmiToken>`, found `Proof<Sse2OnlyToken>`
+   |
+   = note: expected struct `Proof<Avx512VbmiToken>`
+              found struct `Proof<Sse2OnlyToken>`
