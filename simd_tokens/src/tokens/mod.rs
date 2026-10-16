@@ -8,82 +8,130 @@
 
 //! SIMD capability token definitions.
 
-/// Define a SIMD capability token type.
+/// Internal helper macro for [`crate::define_x86_token!`] and
+/// [`crate::define_aarch64_token!`]. Do not call directly.
 ///
-/// Generates:
-/// - A zero-sized `#[derive(Copy, Clone, Debug)]` struct
-/// - A [`SimdToken`] impl with compile-time and runtime feature detection
-/// - Feature marker trait impls for each listed feature
+/// Returns whether all listed features are available at runtime, caching the
+/// result. This is a separate macro so that the `std` feature of `simd_tokens`
+/// decides whether runtime detection is available. A `#[cfg(feature = "std")]`
+/// in the expansion of `__simd_tokens_define_token!` would check the `std`
+/// feature of the crate that invokes `define_x86_token!` or
+/// `define_aarch64_token!`.
+#[cfg(feature = "std")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __simd_tokens_detect {
+    ($detect_macro:ident, $($feature:tt),+) => {{
+        const SUPPORTED: u8 = 0; // Zero Flag
+        const NOT_SUPPORTED: u8 = 1;
+        const NOT_CHECKED: u8 = 255; // Sign Flag
+        const SF_FLAG_SET: u8 = 0x80; // 0x7F
+        static CACHE: ::core::sync::atomic::AtomicU8 =
+            ::core::sync::atomic::AtomicU8::new(NOT_CHECKED);
+
+        let state = CACHE.load(::core::sync::atomic::Ordering::Relaxed);
+        if state == SUPPORTED {
+            true
+        } else if state < SF_FLAG_SET {
+            false
+        } else {
+            ::core::hint::cold_path();
+            let supported = $($crate::__private::$detect_macro!($feature))&&+;
+            CACHE.store(
+                if supported { SUPPORTED } else { NOT_SUPPORTED },
+                ::core::sync::atomic::Ordering::Relaxed,
+            );
+            supported
+        }
+    }};
+}
+
+/// Internal helper macro for [`crate::define_x86_token!`] and
+/// [`crate::define_aarch64_token!`]. Do not call directly.
 ///
-/// # Syntax
+/// Without `std` there is no runtime detection: tokens can only be obtained for
+/// features that are enabled at compile time.
+#[cfg(not(feature = "std"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __simd_tokens_detect {
+    ($detect_macro:ident, $($feature:tt),+) => {
+        false
+    };
+}
+
+/// Internal helper macro for [`crate::define_x86_token!`] and
+/// [`crate::define_aarch64_token!`]. Do not call directly.
 ///
-/// ```ignore
-/// define_token!(TokenName, x86_64, "feature1", "feature2", ...);
-/// define_token!(TokenName, aarch64, "feature1", "feature2", ...);
-/// ```
-///
-/// Optional doc attributes can be placed before the token name:
-///
-/// ```ignore
-/// define_token!(
-///     /// AVX2 + FMA support. Haswell (2013) and later.
-///     Avx2Token, x86_64, "sse4.2", "popcnt", "avx2", "fma",
-/// );
-/// ```
-macro_rules! __define_token {
-    ($(#[$meta:meta])* $name:ident, $arch_cfg:meta, $detect_macro:ident, $($feature:tt),+ $(,)?) => {
-        $(#[$meta])*
-        #[derive(Copy, Clone, Debug)]
-        pub struct $name{
-            _private: (),
+/// The token's only field is a `Proof<Self>`, which is only constructed below,
+/// after compile-time or runtime detection confirmed every listed feature. The
+/// feature trait impls are generated from the same feature list; even though
+/// the feature impl macros must not be called directly, they require a `Proof`
+/// argument nonetheless to ensure soundness. Attributes are restricted to doc
+/// comments so that no attribute macro can rewrite the struct.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __simd_tokens_define_token {
+    (
+        $(#[doc = $doc:expr])*
+        $vis:vis $name:ident,
+        $arch_cfg:meta,
+        $detect_macro:ident,
+        $impl_trait_macro:ident,
+        $($feature:tt),+ $(,)?
+    ) => {
+        $(#[doc = $doc])*
+        #[derive(::core::marker::Copy, ::core::clone::Clone)]
+        $vis struct $name {
+            _private: $crate::__private::Proof<$name>,
+        }
+
+        impl ::core::fmt::Debug for $name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                f.write_str(::core::stringify!($name))
+            }
         }
 
         impl $crate::SimdToken for $name {
             #[inline]
-            fn try_new() -> Option<Self> {
-                #[cfg(all($arch_cfg, $(target_feature = $feature),+))]
-                { return Some(Self{ _private: () }) }
-
-                #[cfg(all($arch_cfg, not(all($(target_feature = $feature),+))))]
+            fn try_new() -> ::core::option::Option<Self> {
+                #[cfg($arch_cfg)]
                 {
-                    #[cfg(feature = "std")]
+                    #[cfg(all($(target_feature = $feature),+))]
                     {
-                        const SUPPORTED: u8 = 0; // Zero Flag
-                        const NOT_SUPPORTED: u8 = 1;
-                        const NOT_CHECKED: u8 = 255; // Sign Flag
-                        const SF_FLAG_SET: u8 = 0x80; // 0x7F
-                        static CACHE: ::core::sync::atomic::AtomicU8 = ::core::sync::atomic::AtomicU8::new(NOT_CHECKED);
-
-                        let state = CACHE.load(::core::sync::atomic::Ordering::Relaxed);
-                        if state == SUPPORTED {
-                            return Some(Self{ _private: () });
-                        } else if state < SF_FLAG_SET {
-                            return None;
-                        }
-
-                        ::core::hint::cold_path();
-                        let supported = $(::std::arch::$detect_macro!($feature))&&+;
-                        CACHE.store(
-                            if supported { SUPPORTED } else { NOT_SUPPORTED },
-                            ::core::sync::atomic::Ordering::Relaxed,
-                        );
-                        return supported.then_some(Self{ _private: () });
+                        return ::core::option::Option::Some(Self {
+                            // SAFETY: all required target features are enabled at compile time.
+                            _private: unsafe { $crate::__private::Proof::<Self>::new() },
+                        });
                     }
-
-                    #[cfg(not(feature = "std"))]
+                    #[cfg(not(all($(target_feature = $feature),+)))]
                     {
-                        None
+                        return if $crate::__simd_tokens_detect!($detect_macro, $($feature),+) {
+                            ::core::option::Option::Some(Self {
+                                // SAFETY: runtime detection confirmed all required features.
+                                _private: unsafe { $crate::__private::Proof::<Self>::new() },
+                            })
+                        } else {
+                            ::core::option::Option::None
+                        }
                     }
                 }
-
                 #[cfg(not($arch_cfg))]
-                None
+                ::core::option::Option::None
+            }
+
+            #[inline(always)]
+            fn as_static(self) -> &'static Self {
+                Self::as_static(self)
             }
         }
 
         impl $name {
+            /// Checks CPU features at runtime. Returns `Some(token)` if all
+            /// required features are present. The result is cached after the
+            /// first call.
             #[inline(always)]
-            pub fn try_new() -> Option<Self> {
+            $vis fn try_new() -> ::core::option::Option<Self> {
                 <Self as $crate::SimdToken>::try_new()
             }
 
@@ -93,14 +141,26 @@ macro_rules! __define_token {
             /// Tokens are zero-sized and stay valid for the lifetime of the
             /// process, so this needs no allocation or synchronization.
             #[inline(always)]
-            pub const fn as_static(self) -> &'static Self {
-                &Self { _private: () }
+            $vis const fn as_static(self) -> &'static Self {
+                const {
+                    &Self {
+                        // SAFETY: `self` is a token, which proves that all required
+                        // features are available.
+                        _private: unsafe { $crate::__private::Proof::<Self>::new() },
+                    }
+                }
             }
         }
 
         $(
             #[cfg($arch_cfg)]
-            $crate::features::__impl_feature_trait!($name, $feature);
+            $crate::$impl_trait_macro!(
+                $name,
+                $feature,
+                // SAFETY: values of `$name` are only created above, after
+                // detecting every listed feature.
+                unsafe { $crate::__private::Proof::<$name>::new() }
+            );
         )*
     };
 }
@@ -114,9 +174,15 @@ impl crate::SimdToken for ScalarToken {
     fn try_new() -> Option<Self> {
         Some(Self)
     }
+
+    #[inline(always)]
+    fn as_static(self) -> &'static Self {
+        Self::as_static(self)
+    }
 }
 
 impl ScalarToken {
+    /// Returns `Some(ScalarToken)` unconditionally.
     #[inline(always)]
     pub fn try_new() -> Option<Self> {
         <Self as crate::SimdToken>::try_new()
