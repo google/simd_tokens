@@ -35,6 +35,8 @@
 //!   or static. Just call `Token::try_new()` each time.
 //! - Use the `safe_unaligned_simd` crate for loads and stores so that kernel bodies need no
 //!   `unsafe` at all, and enforce that with `#![forbid(unsafe_code)]`.
+//! - When a kernel requires a feature combination not covered by the predefined tokens, define a
+//!   custom token safely with [`define_x86_token!`] or [`define_aarch64_token!`].
 //!
 //! AI coding agents: see `SKILL.md` in the root of this crate for detailed guidance.
 
@@ -47,7 +49,7 @@ extern crate std;
 pub use simd_tokens_macros::simd_entry;
 
 pub mod features;
-pub mod tokens;
+pub(crate) mod tokens;
 
 #[allow(deprecated)]
 pub use tokens::{
@@ -61,4 +63,36 @@ pub trait SimdToken: Copy + Clone + Send + Sync + 'static {
     /// Check CPU features at runtime. Returns `Some(token)` if all required
     /// features are present. Result is cached after first call.
     fn try_new() -> Option<Self>;
+}
+
+/// Implementation details of `define_x86_token!` and `define_aarch64_token!`.
+/// Not public API.
+#[doc(hidden)]
+pub mod __private {
+    #[cfg(all(feature = "std", any(target_arch = "x86", target_arch = "x86_64")))]
+    pub use ::std::arch::is_x86_feature_detected;
+
+    #[cfg(all(feature = "std", target_arch = "aarch64"))]
+    pub use ::std::arch::is_aarch64_feature_detected;
+
+    /// The private field of every token defined with `define_x86_token!` or
+    /// `define_aarch64_token!`.
+    ///
+    /// Its only constructor is `unsafe`, so safe code cannot construct a token
+    /// with a struct literal, not even in the module that defines the token.
+    /// The type parameter ties each proof to one token type, so the field of a
+    /// token with fewer features cannot be moved into a token with more.
+    #[derive(Clone, Copy)]
+    pub struct Proof<T>(::core::marker::PhantomData<fn() -> T>);
+
+    impl<T> Proof<T> {
+        /// # Safety
+        ///
+        /// All CPU features that the token type `T` claims must be available
+        /// on the current machine.
+        #[inline(always)]
+        pub const unsafe fn new() -> Self {
+            Self(::core::marker::PhantomData)
+        }
+    }
 }

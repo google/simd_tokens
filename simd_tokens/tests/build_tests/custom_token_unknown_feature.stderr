@@ -1,0 +1,15 @@
+error: unknown x86 target feature: not_a_real_feature
+  --> tests/build_tests/custom_token_unknown_feature.rs:14:1
+   |
+14 | simd_tokens::define_x86_token!(BadToken, "not_a_real_feature");
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `$crate::__private::is_x86_feature_detected` which comes from the expansion of the macro `simd_tokens::define_x86_token` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: define_x86_token! does not recognize x86/x86_64 feature "not_a_real_feature"
+  --> tests/build_tests/custom_token_unknown_feature.rs:14:1
+   |
+14 | simd_tokens::define_x86_token!(BadToken, "not_a_real_feature");
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `$crate::__simd_tokens_impl_x86_feature_trait` which comes from the expansion of the macro `simd_tokens::define_x86_token` (in Nightly builds, run with -Z macro-backtrace for more info)
