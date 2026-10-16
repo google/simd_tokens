@@ -160,12 +160,14 @@ the previous levels for that architecture.
 
 **x86 / x86-64**
 
-| Token         | Level     | Features Added |
-| :------------ | :-------- | :------------- |
-| `Sse2Token`   | x86-64-v1 | `sse`, `sse2`                                                                 |
-| `Sse42Token`  | x86-64-v2 | `sse3`, `ssse3`, `sse4.1`, `sse4.2`, `popcnt`, `cmpxchg16b`                   |
-| `Avx2Token`   | x86-64-v3 | `avx`, `avx2`, `fma`, `bmi1`, `bmi2`, `f16c`, `lzcnt`, `movbe`                |
-| `Avx512Token` | x86-64-v4 | `avx512f`, `avx512bw`, `avx512cd`, `avx512dq`, `avx512vl`, `pclmulqdq`, `aes` |
+| Token         | Level         | Features Added |
+| :------------ | :------------ | :------------- |
+| `Sse2Token`   | x86-64-v1     | `sse`, `sse2`                                                                      |
+| `Sse42Token`  | x86-64-v2     | `sse3`, `ssse3`, `sse4.1`, `sse4.2`, `popcnt`, `cmpxchg16b`                        |
+| `Avx2Token`   | x86-64-v3[^1] | `avx`, `avx2`, `fma`, `bmi1`, `bmi2`, `f16c`, `lzcnt`, `movbe`, `pclmulqdq`, `aes` |
+| `Avx512Token` | x86-64-v4     | `avx512f`, `avx512bw`, `avx512cd`, `avx512dq`, `avx512vl`                          |
+
+[^1]: `pclmulqdq` and `aes` are not part of x86-64-v3; but ~ all AVX2-capable CPUs have them.
 
 **AArch64**
 

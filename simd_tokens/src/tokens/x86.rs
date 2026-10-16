@@ -35,7 +35,7 @@ define_x86_token!(
 );
 
 define_x86_token!(
-    /// Proof that AVX2 + FMA + BMI1/2 + F16C + LZCNT are available (x86-64-v3 level).
+    /// Proof that x86-64-v3 (AVX2 + FMA + BMI1/2 + F16C + LZCNT) + PCLMULQDQ + AES are available.
     Avx2Token,
     "sse",
     "sse2",
@@ -53,6 +53,8 @@ define_x86_token!(
     "f16c",
     "lzcnt",
     "movbe",
+    "pclmulqdq",
+    "aes",
 );
 
 define_x86_token!(

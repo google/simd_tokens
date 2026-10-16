@@ -42,11 +42,11 @@ help: the following other types implement trait `Sse`
    | |_- in this macro invocation
    |
    | / define_x86_token!(
-   | |     /// Proof that AVX2 + FMA + BMI1/2 + F16C + LZCNT are available (x86-64-v3 level).
+   | |     /// Proof that x86-64-v3 (AVX2 + FMA + BMI1/2 + F16C + LZCNT) + PCLMULQDQ + AES are available.
    | |     Avx2Token,
    | |     "sse",
 ...  |
-   | |     "movbe",
+   | |     "aes",
    | | );
    | |_- in this macro invocation
    |
