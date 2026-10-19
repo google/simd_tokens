@@ -8,22 +8,62 @@
 
 //! x86/x86_64 SIMD tokens.
 
+/// Defines a custom x86/x86_64 SIMD capability token.
+///
+/// Use this when a kernel needs a feature combination that the predefined tokens don't cover.
+/// The token implements the feature traits of exactly the listed features, so list every feature
+/// that the `#[target_feature(enable = ...)]` of your kernels names.
+///
+/// The token is private unless a visibility is given.
+///
+/// # Example
+///
+/// ```
+/// #![forbid(unsafe_code)]
+/// use simd_tokens::{define_x86_token, simd_entry, SimdToken};
+///
+/// define_x86_token!(
+///     /// Proof that AVX2 + VAES + VPCLMULQDQ are available.
+///     pub Avx2VaesToken,
+///     "avx2",
+///     "vaes",
+///     "vpclmulqdq",
+/// );
+///
+/// #[cfg(target_arch = "x86_64")]
+/// #[simd_entry]
+/// #[target_feature(enable = "avx2,vaes")]
+/// fn transform(data: &mut [u8; 32], token: impl SimdToken) {
+///     let _ = data;
+/// }
+/// ```
+#[macro_export]
 macro_rules! define_x86_token {
-    ($(#[$meta:meta])* $name:ident, $($feature:tt),+ $(,)?) => {
-        __define_token!($(#[$meta])* $name, any(target_arch = "x86", target_arch = "x86_64"), is_x86_feature_detected, $($feature),+);
+    ($(#[doc = $doc:expr])* $vis:vis $name:ident, $($feature:tt),+ $(,)?) => {
+        $crate::__simd_tokens_define_token!(
+            $(#[doc = $doc])*
+            $vis $name,
+            any(target_arch = "x86", target_arch = "x86_64"),
+            is_x86_feature_detected,
+            __simd_tokens_impl_x86_feature_trait,
+            $($feature),+
+        );
+    };
+    ($(#[$attr:meta])* $vis:vis $name:ident, $($feature:tt),+ $(,)?) => {
+        ::core::compile_error!("define_x86_token! accepts only doc comments as attributes");
     };
 }
 
 define_x86_token!(
     /// Proof that SSE + SSE2 are available (x86-64-v1 baseline level).
-    Sse2Token,
+    pub Sse2Token,
     "sse",
     "sse2",
 );
 
 define_x86_token!(
     /// Proof that SSE4.2 + POPCNT are available (x86-64-v2 level).
-    Sse42Token,
+    pub Sse42Token,
     "sse",
     "sse2",
     "sse3",
@@ -36,7 +76,7 @@ define_x86_token!(
 
 define_x86_token!(
     /// Proof that x86-64-v3 (AVX2 + FMA + BMI1/2 + F16C + LZCNT) + PCLMULQDQ + AES are available.
-    Avx2Token,
+    pub Avx2Token,
     "sse",
     "sse2",
     "sse3",
@@ -59,7 +99,7 @@ define_x86_token!(
 
 define_x86_token!(
     /// Proof that AVX-512 (F + CD + VL + DQ + BW) is available (x86-64-v4 level).
-    Avx512Token,
+    pub Avx512Token,
     "sse",
     "sse2",
     "sse3",

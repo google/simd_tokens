@@ -6,16 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use simd_tokens::{simd_entry, SimdToken};
-
-#[derive(Copy, Clone)]
-struct NoSimdToken;
-impl SimdToken for NoSimdToken {
-    fn try_new() -> Option<Self> {
-        Some(Self)
-    }
-}
-// We do NOT implement Sse/Neon for NoSimdToken.
+use simd_tokens::{simd_entry, ScalarToken, SimdToken};
 
 #[simd_entry]
 #[cfg_attr(any(target_arch = "x86", target_arch = "x86_64"), target_feature(enable = "sse"))]
@@ -25,8 +16,7 @@ fn require_sse(a: f32, token: impl SimdToken) -> f32 {
 }
 
 fn main() {
-    let token = NoSimdToken;
-    // This should fail to compile because NoSimdToken does not implement the feature trait (Sse or
+    // This should fail to compile because ScalarToken does not implement the feature trait (Sse or
     // Neon).
-    let _ = require_sse(1.0, token);
+    let _ = require_sse(1.0, ScalarToken);
 }

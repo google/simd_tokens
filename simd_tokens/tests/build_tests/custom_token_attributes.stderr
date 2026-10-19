@@ -1,0 +1,12 @@
+error: define_x86_token! accepts only doc comments as attributes
+  --> tests/build_tests/custom_token_attributes.rs:13:1
+   |
+13 | / define_x86_token!(
+14 | |     /// Doc comments are fine.
+15 | |     #[derive(Default)]
+16 | |     DefaultToken,
+17 | |     "avx512f",
+18 | | );
+   | |_^
+   |
+   = note: this error originates in the macro `define_x86_token` (in Nightly builds, run with -Z macro-backtrace for more info)

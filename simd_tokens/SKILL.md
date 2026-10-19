@@ -299,6 +299,13 @@ based on whether the helper calls SIMD intrinsics:
 -   **AArch64**: `NeonToken` ⊂ `NeonDotprodToken` ⊂ `NeonI8mmToken`
 -   **Fallback**: `ScalarToken` (always succeeds; use with
     `#[simd_entry(allow_no_target_features)]`)
+-   **Custom tokens**: When a kernel needs a feature combination not covered by
+    the predefined tiers (e.g. `avx512vbmi`, `avx512vnni`), define a custom
+    token without `unsafe` using `define_x86_token!(pub MyToken, "avx512vbmi",
+    "avx512vnni", ...)` or `define_aarch64_token!(pub MyToken, ...)`. A custom
+    token implements exactly the listed features, so list every feature named in
+    the `#[target_feature(enable = ...)]` of the kernels it is passed to. Never
+    write a manual `unsafe impl simd_tokens::features::...` instead.
 
 Tokens form a capability hierarchy: wider tokens implement the trait bounds of
 their subsets (e.g., `Avx2Token` implements `Sse2`). Higher-capability tokens
