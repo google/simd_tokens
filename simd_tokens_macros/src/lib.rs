@@ -13,6 +13,10 @@ use syn::{Expr, Lit, Meta};
 
 /// Maps a single `target_feature` string to its corresponding trait bound path.
 ///
+/// Emits a leading `::` so a local `mod simd_tokens` cannot shadow the trait
+/// bounds added by `#[simd_entry]` (deliberate `extern crate` re-pointing is
+/// out of scope for attribute proc macros).
+///
 /// Returns a compile error for unrecognized features, which is intentional to
 /// prevent silent mismatches if new CPU features are added in the future.
 fn feature_to_trait(
@@ -21,50 +25,50 @@ fn feature_to_trait(
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     match feature {
         // x86/x86_64 features
-        "sse" => Ok(quote! { simd_tokens::features::Sse }),
-        "sse2" => Ok(quote! { simd_tokens::features::Sse2 }),
-        "sse3" => Ok(quote! { simd_tokens::features::Sse3 }),
-        "ssse3" => Ok(quote! { simd_tokens::features::Ssse3 }),
-        "sse4.1" => Ok(quote! { simd_tokens::features::Sse41 }),
-        "sse4.2" => Ok(quote! { simd_tokens::features::Sse42 }),
-        "popcnt" => Ok(quote! { simd_tokens::features::Popcnt }),
-        "cmpxchg16b" => Ok(quote! { simd_tokens::features::Cmpxchg16b }),
-        "pclmulqdq" => Ok(quote! { simd_tokens::features::Pclmulqdq }),
-        "aes" => Ok(quote! { simd_tokens::features::Aes }),
-        "avx" => Ok(quote! { simd_tokens::features::Avx }),
-        "avx2" => Ok(quote! { simd_tokens::features::Avx2 }),
-        "fma" => Ok(quote! { simd_tokens::features::Fma }),
-        "bmi1" => Ok(quote! { simd_tokens::features::Bmi1 }),
-        "bmi2" => Ok(quote! { simd_tokens::features::Bmi2 }),
-        "f16c" => Ok(quote! { simd_tokens::features::F16c }),
-        "lzcnt" => Ok(quote! { simd_tokens::features::Lzcnt }),
-        "movbe" => Ok(quote! { simd_tokens::features::Movbe }),
-        "vpclmulqdq" => Ok(quote! { simd_tokens::features::Vpclmulqdq }),
-        "vaes" => Ok(quote! { simd_tokens::features::Vaes }),
-        "avx512f" => Ok(quote! { simd_tokens::features::Avx512f }),
-        "avx512bw" => Ok(quote! { simd_tokens::features::Avx512bw }),
-        "avx512cd" => Ok(quote! { simd_tokens::features::Avx512cd }),
-        "avx512dq" => Ok(quote! { simd_tokens::features::Avx512dq }),
-        "avx512vl" => Ok(quote! { simd_tokens::features::Avx512vl }),
-        "avx512vpopcntdq" => Ok(quote! { simd_tokens::features::Avx512vpopcntdq }),
-        "avx512ifma" => Ok(quote! { simd_tokens::features::Avx512ifma }),
-        "avx512vbmi" => Ok(quote! { simd_tokens::features::Avx512vbmi }),
-        "avx512vbmi2" => Ok(quote! { simd_tokens::features::Avx512vbmi2 }),
-        "avx512bitalg" => Ok(quote! { simd_tokens::features::Avx512bitalg }),
-        "avx512vnni" => Ok(quote! { simd_tokens::features::Avx512vnni }),
-        "gfni" => Ok(quote! { simd_tokens::features::Gfni }),
-        "avx512fp16" => Ok(quote! { simd_tokens::features::Avx512fp16 }),
+        "sse" => Ok(quote! { ::simd_tokens::features::Sse }),
+        "sse2" => Ok(quote! { ::simd_tokens::features::Sse2 }),
+        "sse3" => Ok(quote! { ::simd_tokens::features::Sse3 }),
+        "ssse3" => Ok(quote! { ::simd_tokens::features::Ssse3 }),
+        "sse4.1" => Ok(quote! { ::simd_tokens::features::Sse41 }),
+        "sse4.2" => Ok(quote! { ::simd_tokens::features::Sse42 }),
+        "popcnt" => Ok(quote! { ::simd_tokens::features::Popcnt }),
+        "cmpxchg16b" => Ok(quote! { ::simd_tokens::features::Cmpxchg16b }),
+        "pclmulqdq" => Ok(quote! { ::simd_tokens::features::Pclmulqdq }),
+        "aes" => Ok(quote! { ::simd_tokens::features::Aes }),
+        "avx" => Ok(quote! { ::simd_tokens::features::Avx }),
+        "avx2" => Ok(quote! { ::simd_tokens::features::Avx2 }),
+        "fma" => Ok(quote! { ::simd_tokens::features::Fma }),
+        "bmi1" => Ok(quote! { ::simd_tokens::features::Bmi1 }),
+        "bmi2" => Ok(quote! { ::simd_tokens::features::Bmi2 }),
+        "f16c" => Ok(quote! { ::simd_tokens::features::F16c }),
+        "lzcnt" => Ok(quote! { ::simd_tokens::features::Lzcnt }),
+        "movbe" => Ok(quote! { ::simd_tokens::features::Movbe }),
+        "vpclmulqdq" => Ok(quote! { ::simd_tokens::features::Vpclmulqdq }),
+        "vaes" => Ok(quote! { ::simd_tokens::features::Vaes }),
+        "avx512f" => Ok(quote! { ::simd_tokens::features::Avx512f }),
+        "avx512bw" => Ok(quote! { ::simd_tokens::features::Avx512bw }),
+        "avx512cd" => Ok(quote! { ::simd_tokens::features::Avx512cd }),
+        "avx512dq" => Ok(quote! { ::simd_tokens::features::Avx512dq }),
+        "avx512vl" => Ok(quote! { ::simd_tokens::features::Avx512vl }),
+        "avx512vpopcntdq" => Ok(quote! { ::simd_tokens::features::Avx512vpopcntdq }),
+        "avx512ifma" => Ok(quote! { ::simd_tokens::features::Avx512ifma }),
+        "avx512vbmi" => Ok(quote! { ::simd_tokens::features::Avx512vbmi }),
+        "avx512vbmi2" => Ok(quote! { ::simd_tokens::features::Avx512vbmi2 }),
+        "avx512bitalg" => Ok(quote! { ::simd_tokens::features::Avx512bitalg }),
+        "avx512vnni" => Ok(quote! { ::simd_tokens::features::Avx512vnni }),
+        "gfni" => Ok(quote! { ::simd_tokens::features::Gfni }),
+        "avx512fp16" => Ok(quote! { ::simd_tokens::features::Avx512fp16 }),
         // aarch64 features
-        "neon" => Ok(quote! { simd_tokens::features::Neon }),
-        "rdm" => Ok(quote! { simd_tokens::features::Rdm }),
-        "dotprod" => Ok(quote! { simd_tokens::features::Dotprod }),
-        "fp16" => Ok(quote! { simd_tokens::features::Fp16 }),
-        "sha2" => Ok(quote! { simd_tokens::features::Sha2 }),
-        "fhm" => Ok(quote! { simd_tokens::features::Fhm }),
-        "fcma" => Ok(quote! { simd_tokens::features::Fcma }),
-        "sha3" => Ok(quote! { simd_tokens::features::Sha3 }),
-        "i8mm" => Ok(quote! { simd_tokens::features::I8mm }),
-        "bf16" => Ok(quote! { simd_tokens::features::Bf16 }),
+        "neon" => Ok(quote! { ::simd_tokens::features::Neon }),
+        "rdm" => Ok(quote! { ::simd_tokens::features::Rdm }),
+        "dotprod" => Ok(quote! { ::simd_tokens::features::Dotprod }),
+        "fp16" => Ok(quote! { ::simd_tokens::features::Fp16 }),
+        "sha2" => Ok(quote! { ::simd_tokens::features::Sha2 }),
+        "fhm" => Ok(quote! { ::simd_tokens::features::Fhm }),
+        "fcma" => Ok(quote! { ::simd_tokens::features::Fcma }),
+        "sha3" => Ok(quote! { ::simd_tokens::features::Sha3 }),
+        "i8mm" => Ok(quote! { ::simd_tokens::features::I8mm }),
+        "bf16" => Ok(quote! { ::simd_tokens::features::Bf16 }),
         _ => Err(syn::Error::new_spanned(
             sig,
             format!(
@@ -845,7 +849,7 @@ mod tests {
             result_str,
             contains_substring(
                 "pub fn my_func (x : i32 , # [allow (unused_variables)] token : impl SimdToken + \
-                 simd_tokens :: features :: Avx2 + simd_tokens :: features :: Fma) -> i32"
+                 :: simd_tokens :: features :: Avx2 + :: simd_tokens :: features :: Fma) -> i32"
             )
         );
         // The inner function keeps the target_feature, drops the token, same visibility.
@@ -928,7 +932,7 @@ mod tests {
             result_str,
             contains_substring(
                 "pub (crate) fn process (& self , v : f32 , # [allow (unused_variables)] token : \
-                 impl SimdToken + simd_tokens :: features :: Avx2) -> f32"
+                 impl SimdToken + :: simd_tokens :: features :: Avx2) -> f32"
             )
         );
         expect_that!(result_str, contains_substring("[`Self::process`]"));
@@ -946,7 +950,7 @@ mod tests {
         let result_str = result.to_string();
 
         // Wrapper: token generic gains the feature bound.
-        expect_that!(result_str, contains_substring("T : simd_tokens :: features :: Avx2"));
+        expect_that!(result_str, contains_substring("T : :: simd_tokens :: features :: Avx2"));
         // Inner function: `T` and its where-predicate are gone, `U`'s stays.
         expect_that!(
             result_str,
