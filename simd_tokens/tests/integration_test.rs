@@ -6,51 +6,21 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! Integration tests for the `#[simd_entry]` proc macro.
-//!
-//! Every `unsafe` here is a test fixture: the feature impls are hand-written
-//! for a token that never probes the CPU, and the raw variants being called
-//! have bodies of plain arithmetic. Per-site SAFETY comments would be noise.
+//! Integration tests for the `#[simd_entry]` and `#[derive(SimdToken)]` macros.
 #![allow(clippy::undocumented_unsafe_blocks)]
 
 use googletest::prelude::*;
-use simd_tokens::{simd_entry, SimdToken};
+use simd_tokens::{simd_entry, ScalarToken, SimdToken};
 
 // ---------------------------------------------------------------------------
-// TestToken: A minimal token implementing only SimdToken.
+// FeatureToken: A token implementing two features for testing bounds.
 // ---------------------------------------------------------------------------
-#[derive(Copy, Clone, Debug)]
-struct TestToken;
-
-impl SimdToken for TestToken {
-    fn try_new() -> Option<Self> {
-        Some(Self)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// FeatureToken: A token implementing specific features for testing bounds.
-// ---------------------------------------------------------------------------
-#[derive(Copy, Clone, Debug)]
-struct FeatureToken;
-
-impl SimdToken for FeatureToken {
-    fn try_new() -> Option<Self> {
-        Some(Self)
-    }
-}
-
-// Implement primary feature: Sse on x86, Neon on aarch64.
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-unsafe impl simd_tokens::features::Sse for FeatureToken {}
+#[derive(Copy, Clone, SimdToken)]
+struct FeatureToken(simd_tokens::x86::Sse, simd_tokens::x86::Sse2);
 #[cfg(target_arch = "aarch64")]
-unsafe impl simd_tokens::features::Neon for FeatureToken {}
-
-// Implement secondary feature: Sse2 on x86, Aes on aarch64.
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-unsafe impl simd_tokens::features::Sse2 for FeatureToken {}
-#[cfg(target_arch = "aarch64")]
-unsafe impl simd_tokens::features::Aes for FeatureToken {}
+#[derive(Copy, Clone, SimdToken)]
+struct FeatureToken(simd_tokens::aarch64::Neon, simd_tokens::aarch64::Aes);
 
 // ---------------------------------------------------------------------------
 // Tests verifying feature trait bounds mapping
@@ -82,6 +52,20 @@ fn test_multi_feature_gated() {
     let token = FeatureToken::try_new().unwrap();
     let result = multi_feature_gated(1.0, 2.0, token);
     expect_eq!(result, 3.0);
+}
+
+// Wildcard pattern (`_: impl SimdToken`) still receives witness extraction.
+#[simd_entry]
+#[cfg_attr(any(target_arch = "x86", target_arch = "x86_64"), target_feature(enable = "sse"))]
+#[cfg_attr(target_arch = "aarch64", target_feature(enable = "neon"))]
+fn wildcard_token_param(a: f32, _: impl SimdToken) -> f32 {
+    a * 2.0
+}
+
+#[gtest]
+fn test_wildcard_token_param() {
+    let token = FeatureToken::try_new().unwrap();
+    expect_eq!(wildcard_token_param(3.0, token), 6.0);
 }
 
 // Token as a named generic parameter (inline bound).
@@ -182,7 +166,7 @@ fn basic_add(a: f32, b: f32, token: impl SimdToken) -> f32 {
 
 #[gtest]
 fn test_basic_function() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     let result = basic_add(1.0, 2.0, token);
     expect_eq!(result, 3.0);
 }
@@ -198,7 +182,7 @@ where
 
 #[gtest]
 fn test_generic_function() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     let result = add_generic(10i32, 20i32, token);
     expect_eq!(result, 30);
     let result_f = add_generic(1.5f64, 2.5f64, token);
@@ -215,7 +199,7 @@ fn first_element<'a, T>(data: &'a [T], token: impl SimdToken) -> &'a T {
 
 #[gtest]
 fn test_lifetime_generics() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     let data = [42u32, 1, 2, 3];
     let result = first_element(&data, token);
     expect_eq!(*result, 42);
@@ -229,7 +213,7 @@ fn array_len<const N: usize>(_data: [u8; N], token: impl SimdToken) -> usize {
 
 #[gtest]
 fn test_const_generics() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     expect_eq!(array_len([0u8; 5], token), 5);
 }
 
@@ -259,7 +243,7 @@ fn scaled_sum<U: Unit, const N: usize>(
 
 #[gtest]
 fn test_explicit_generics_with_impl_trait_args() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     expect_eq!(scaled_sum::<Metres, 2>([1.0, 2.0], 3u8, token), 6.0);
     expect_eq!(scaled_sum::<Kilometres, 2>([1.0, 2.0], 3u8, token), 6000.0);
     // The raw variant has the same generics minus the token.
@@ -274,7 +258,7 @@ fn add_destructured((a, b): (f32, f32), token: impl SimdToken) -> f32 {
 
 #[gtest]
 fn test_destructured_args() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     let result = add_destructured((3.0, 4.0), token);
     expect_eq!(result, 7.0);
 }
@@ -288,7 +272,7 @@ fn mutable_binding(mut a: f32, token: impl SimdToken) -> f32 {
 
 #[gtest]
 fn test_mutable_binding() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     expect_eq!(mutable_binding(1.0, token), 2.0);
 }
 
@@ -306,7 +290,7 @@ impl Processor {
 
 #[gtest]
 fn test_method_with_self() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     let p = Processor { offset: 10.0 };
     let result = p.process(5.0, token);
     expect_eq!(result, 15.0);
@@ -328,7 +312,7 @@ impl Accumulator {
 
 #[gtest]
 fn test_method_with_mut_self() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     let mut acc = Accumulator { total: 0.0 };
     acc.accumulate(3.0, token);
     acc.accumulate(7.0, token);
@@ -349,7 +333,7 @@ impl Scaler {
 
 #[gtest]
 fn test_generic_method() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     let s = Scaler { scale: 3.0 };
     expect_eq!(s.scale_into(5u8, token), 15.0);
 }
@@ -362,7 +346,7 @@ unsafe fn raw_add(a: f32, b: f32, token: impl SimdToken) -> f32 {
 
 #[gtest]
 fn test_unsafe_function() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     let result = unsafe { raw_add(1.0, 2.0, token) };
     expect_eq!(result, 3.0);
 }
@@ -375,7 +359,7 @@ fn side_effect(out: &mut f32, value: f32, token: impl SimdToken) {
 
 #[gtest]
 fn test_unit_return() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     let mut x = 0.0f32;
     side_effect(&mut x, 42.0, token);
     expect_eq!(x, 42.0);
@@ -389,7 +373,7 @@ fn convert_pair<A: Into<f64>, B: Into<f64>>(a: A, b: B, token: impl SimdToken) -
 
 #[gtest]
 fn test_multiple_generics() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     let result = convert_pair(1i32, 2.0f32, token);
     expect_eq!(result, 3.0);
 }
@@ -402,7 +386,7 @@ fn qualified_token(a: f32, token: impl simd_tokens::SimdToken) -> f32 {
 
 #[gtest]
 fn test_qualified_token() {
-    let token = TestToken::try_new().unwrap();
+    let token = ScalarToken::try_new().unwrap();
     expect_eq!(qualified_token(1.0, token), 1.0);
 }
 
@@ -444,4 +428,285 @@ fn test_as_static_dyn_dispatch() {
     }
 
     expect_eq!(select_backend().compute(2.0, 3.0), 5.0);
+}
+
+#[gtest]
+fn test_as_static_generic() {
+    fn promote_generic<T: SimdToken>(token: T) -> &'static T {
+        token.as_static()
+    }
+
+    let token = BaselineToken::try_new().unwrap();
+    expect_eq!(promote_generic(token).compute(2.0, 3.0), 5.0);
+    expect_eq!(promote_generic(simd_tokens::ScalarToken).compute(2.0, 3.0), 5.0);
+}
+
+// ---------------------------------------------------------------------------
+// Tests verifying `#[derive(SimdToken)]`, feature witnesses, and runtime
+// rejection of forged safe trait impls under `#[forbid(unsafe_code)]`
+// ---------------------------------------------------------------------------
+
+#[forbid(unsafe_code)]
+#[deny(unreachable_pub, missing_docs)]
+mod custom_tokens {
+    use core::sync::atomic::{AtomicBool, Ordering};
+    use googletest::prelude::*;
+    use simd_tokens::aarch64::{Aes, Neon, Sha2};
+    use simd_tokens::x86::{
+        Avx2, Avx512bitalg, Avx512bw, Avx512f, Avx512vbmi, Avx512vbmi2, Avx512vl, Avx512vnni,
+        Avx512vpopcntdq, Fma, Gfni, Sse, Sse2, Vaes, Vpclmulqdq,
+    };
+    use simd_tokens::{aarch64, simd_entry, x86, Has, SimdToken};
+
+    // Private custom tuple struct token with baseline x86 features.
+    #[derive(Copy, Clone, PartialEq, Eq, SimdToken)]
+    struct PrivateSse2Token(Sse, Sse2);
+
+    // Crate-visible custom token with extra features not on any built-in token
+    // (`vaes`, `vpclmulqdq`, `gfni`, `avx512vbmi`, `avx512vnni`).
+    /// Custom Ice Lake AVX-512 token.
+    #[derive(Copy, Clone, SimdToken)]
+    pub(crate) struct IcelakeAvx512Token(
+        Avx2,
+        Vaes,
+        Vpclmulqdq,
+        Gfni,
+        Avx512f,
+        Avx512bw,
+        Avx512vl,
+        Avx512vbmi,
+        Avx512vbmi2,
+        Avx512vnni,
+        Avx512bitalg,
+        Avx512vpopcntdq,
+    );
+
+    // Parent-visible custom AArch64 token using `Aes` alongside `Neon` and `Sha2`.
+    /// Custom Armv8.0-A Crypto token.
+    #[derive(Copy, Clone, SimdToken)]
+    pub(super) struct NeonCryptoToken(Neon, Aes, Sha2);
+
+    // Standalone qualified single-feature `Aes` tokens for both architectures.
+    #[derive(Copy, Clone, SimdToken)]
+    struct StandaloneX86Aes(x86::Aes);
+
+    #[derive(Copy, Clone, SimdToken)]
+    struct StandaloneArmAes(aarch64::Aes);
+
+    #[derive(Copy, Clone, SimdToken)]
+    struct Avx2VaesToken(Avx2, Fma, Vaes, Vpclmulqdq);
+
+    mod imported_aes {
+        use simd_tokens::x86::Aes;
+        use simd_tokens::SimdToken;
+
+        #[derive(Copy, Clone, SimdToken)]
+        pub(super) struct ImportedX86AesToken(Aes);
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[simd_entry]
+    #[target_feature(enable = "sse,sse2")]
+    fn add_sse2(a: f32, b: f32, token: impl SimdToken) -> f32 {
+        a + b
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[simd_entry]
+    #[target_feature(enable = "avx2,fma,vaes,vpclmulqdq")]
+    fn avx2_vaes_kernel(a: f32, b: f32, token: impl SimdToken) -> f32 {
+        a + b
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[simd_entry]
+    #[target_feature(enable = "avx512f,avx512bw,avx512vbmi,avx512vnni,vaes,vpclmulqdq,gfni")]
+    fn icelake_kernel(a: f32, b: f32, token: impl SimdToken) -> f32 {
+        a * b
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[simd_entry]
+    #[target_feature(enable = "neon")]
+    fn add_neon(a: f32, b: f32, token: impl SimdToken) -> f32 {
+        a + b
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[simd_entry]
+    #[target_feature(enable = "neon,aes,sha2")]
+    fn neon_crypto_kernel(a: f32, b: f32, token: impl SimdToken) -> f32 {
+        a * b
+    }
+
+    #[gtest]
+    fn test_custom_tokens_forbid_unsafe() {
+        expect_eq!(core::mem::size_of::<PrivateSse2Token>(), 0);
+        expect_eq!(core::mem::size_of::<IcelakeAvx512Token>(), 0);
+        expect_eq!(core::mem::size_of::<NeonCryptoToken>(), 0);
+        expect_eq!(core::mem::size_of::<StandaloneX86Aes>(), 0);
+        expect_eq!(core::mem::size_of::<StandaloneArmAes>(), 0);
+        expect_eq!(core::mem::size_of::<Avx2VaesToken>(), 0);
+        expect_eq!(core::mem::size_of::<imported_aes::ImportedX86AesToken>(), 0);
+
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            let token = PrivateSse2Token::try_new().expect("SSE2 is baseline on x86_64");
+            expect_eq!(format!("{token:?}"), "PrivateSse2Token");
+            expect_eq!(format!("{:?}", Sse::try_new().unwrap()), "Sse");
+            if let Some(avx2) = simd_tokens::Avx2Token::try_new() {
+                expect_eq!(format!("{avx2:?}"), "Avx2Token");
+            }
+            let static_ref: &'static PrivateSse2Token = token.as_static();
+            expect_eq!(add_sse2(4.0, 5.0, *static_ref), 9.0);
+            expect_that!(NeonCryptoToken::try_new(), none());
+            expect_that!(StandaloneArmAes::try_new(), none());
+            expect_eq!(
+                imported_aes::ImportedX86AesToken::try_new().is_some(),
+                StandaloneX86Aes::try_new().is_some(),
+            );
+
+            if let Some(vaes_tok) = Avx2VaesToken::try_new() {
+                expect_eq!(avx2_vaes_kernel(3.0, 4.0, vaes_tok), 7.0);
+            }
+            if let Some(icelake) = IcelakeAvx512Token::try_new() {
+                expect_eq!(icelake_kernel(3.0, 7.0, icelake), 21.0);
+            }
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        {
+            #[derive(Copy, Clone, SimdToken)]
+            struct PrivateNeonToken(Neon);
+
+            let neon = PrivateNeonToken::try_new().expect("NEON is baseline on aarch64");
+            expect_eq!(format!("{neon:?}"), "PrivateNeonToken");
+            expect_eq!(format!("{:?}", Neon::try_new().unwrap()), "Neon");
+            if let Some(neon_tok) = simd_tokens::NeonToken::try_new() {
+                expect_eq!(format!("{neon_tok:?}"), "NeonToken");
+            }
+            let static_ref: &'static PrivateNeonToken = neon.as_static();
+            expect_eq!(add_neon(4.0, 5.0, *static_ref), 9.0);
+            expect_that!(PrivateSse2Token::try_new(), none());
+            expect_that!(StandaloneX86Aes::try_new(), none());
+            expect_that!(imported_aes::ImportedX86AesToken::try_new(), none());
+
+            if let Some(crypto) = NeonCryptoToken::try_new() {
+                expect_eq!(neon_crypto_kernel(3.0, 7.0, crypto), 21.0);
+            }
+        }
+    }
+
+    // These features are usually not enabled at compile time, so `try_new()`
+    // takes the runtime path: the first call runs detection, the second one
+    // reads the cached result. Both must agree with std's detection.
+    #[gtest]
+    fn test_custom_tokens_runtime_detection() {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            use std::arch::is_x86_feature_detected;
+
+            #[derive(Copy, Clone, SimdToken)]
+            struct VbmiToken(Avx512f, Avx512vbmi, Avx512vbmi2);
+
+            let avx2 = is_x86_feature_detected!("avx2");
+            expect_eq!(Avx2::try_new().is_some(), avx2);
+            expect_eq!(Avx2::try_new().is_some(), avx2);
+
+            let vbmi = is_x86_feature_detected!("avx512f")
+                && is_x86_feature_detected!("avx512vbmi")
+                && is_x86_feature_detected!("avx512vbmi2");
+            expect_eq!(VbmiToken::try_new().is_some(), vbmi);
+            expect_eq!(VbmiToken::try_new().is_some(), vbmi);
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        {
+            use std::arch::is_aarch64_feature_detected;
+
+            #[derive(Copy, Clone, SimdToken)]
+            struct Sha3Token(Neon, simd_tokens::aarch64::Sha3);
+
+            let sha3 = is_aarch64_feature_detected!("neon") && is_aarch64_feature_detected!("sha3");
+            expect_eq!(Sha3Token::try_new().is_some(), sha3);
+            expect_eq!(Sha3Token::try_new().is_some(), sha3);
+        }
+    }
+
+    // Soundness check: in safe code, an adversarial `Has<Feature>::get(&self)`
+    // impl can only panic or diverge because `<Feature>` has no public
+    // constructor. Calling `.get()` inside `#[simd_entry]` before entering
+    // `unsafe` guarantees the inner `#[target_feature]` function is never
+    // reached.
+    #[gtest]
+    fn test_forged_safe_trait_impl_never_reaches_inner_fn() {
+        static INNER_RAN: AtomicBool = AtomicBool::new(false);
+
+        #[derive(Copy, Clone, Debug)]
+        struct AdversarialToken;
+
+        impl SimdToken for AdversarialToken {
+            fn try_new() -> Option<Self> {
+                Some(Self)
+            }
+
+            fn as_static(self) -> &'static Self {
+                &Self
+            }
+        }
+
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        impl Has<x86::Avx512fp16> for AdversarialToken {
+            fn get(&self) -> x86::Avx512fp16 {
+                panic!("cannot construct Avx512fp16 in safe code");
+            }
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        impl Has<aarch64::Bf16> for AdversarialToken {
+            fn get(&self) -> aarch64::Bf16 {
+                panic!("cannot construct Bf16 in safe code");
+            }
+        }
+
+        #[simd_entry]
+        #[cfg_attr(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature(enable = "avx512fp16")
+        )]
+        #[cfg_attr(target_arch = "aarch64", target_feature(enable = "bf16"))]
+        fn guarded_kernel(token: impl SimdToken) {
+            INNER_RAN.store(true, Ordering::SeqCst);
+        }
+
+        let outcome = std::panic::catch_unwind(|| guarded_kernel(AdversarialToken));
+        expect_true!(outcome.is_err());
+        expect_false!(INNER_RAN.load(Ordering::SeqCst));
+    }
+
+    // Soundness check: aliasing a non-baseline witness type to a baseline
+    // witness identifier (`Sse2` / `Neon`) must still check runtime support for
+    // the actual underlying witness type rather than trusting the syntactic name.
+    #[gtest]
+    fn test_aliased_witness_checks_actual_type() {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            use simd_tokens::x86::Avx512fp16 as Sse2;
+
+            #[derive(Copy, Clone, SimdToken)]
+            struct AliasedToken(Sse2);
+
+            expect_eq!(AliasedToken::try_new().is_some(), x86::Avx512fp16::try_new().is_some());
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        {
+            use simd_tokens::aarch64::Bf16 as Neon;
+
+            #[derive(Copy, Clone, SimdToken)]
+            struct AliasedToken(Neon);
+
+            expect_eq!(AliasedToken::try_new().is_some(), aarch64::Bf16::try_new().is_some());
+        }
+    }
 }

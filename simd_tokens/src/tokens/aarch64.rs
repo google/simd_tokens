@@ -6,46 +6,22 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! AArch64 SIMD tokens.
+//! Predefined AArch64 SIMD tokens.
 
-macro_rules! define_aarch64_token {
-    ($(#[$meta:meta])* $name:ident, $($feature:tt),+ $(,)?) => {
-        __define_token!($(#[$meta])* $name, target_arch = "aarch64", is_aarch64_feature_detected, $($feature),+);
-    };
-}
+use crate::features::aarch64::{Aes, Bf16, Dotprod, Fcma, Fhm, Fp16, I8mm, Neon, Rdm, Sha2, Sha3};
+use crate::SimdToken;
 
-define_aarch64_token!(
-    /// Proof that NEON is available.
-    NeonToken,
-    "neon",
-);
+/// Proof that NEON is available.
+#[derive(Copy, Clone, PartialEq, Eq, Hash, SimdToken)]
+pub struct NeonToken(Neon);
 
-define_aarch64_token!(
-    /// Proof that NEON + Dot Product (and v8.2-A SIMD extensions) are available.
-    NeonDotprodToken,
-    "neon",
-    "rdm",
-    "dotprod",
-    "fp16",
-    "aes",
-    "sha2",
-);
+/// Proof that NEON + Dot Product (and v8.2-A SIMD extensions) are available.
+#[derive(Copy, Clone, PartialEq, Eq, Hash, SimdToken)]
+pub struct NeonDotprodToken(Neon, Rdm, Dotprod, Fp16, Aes, Sha2);
 
-define_aarch64_token!(
-    /// Proof that NEON + Int8 Matrix Multiply (and v8.6-A SIMD extensions) are available.
-    NeonI8mmToken,
-    "neon",
-    "rdm",
-    "dotprod",
-    "fp16",
-    "aes",
-    "sha2",
-    "fhm",
-    "fcma",
-    "sha3",
-    "i8mm",
-    "bf16",
-);
+/// Proof that NEON + Int8 Matrix Multiply (and v8.6-A SIMD extensions) are available.
+#[derive(Copy, Clone, PartialEq, Eq, Hash, SimdToken)]
+pub struct NeonI8mmToken(Neon, Rdm, Dotprod, Fp16, Aes, Sha2, Fhm, Fcma, Sha3, I8mm, Bf16);
 
 #[deprecated(note = "Renamed to `NeonToken`")]
 pub type Arm64V1Token = NeonToken;

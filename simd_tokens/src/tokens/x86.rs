@@ -6,83 +6,71 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! x86/x86_64 SIMD tokens.
+//! Predefined x86/x86_64 SIMD tokens.
 
-macro_rules! define_x86_token {
-    ($(#[$meta:meta])* $name:ident, $($feature:tt),+ $(,)?) => {
-        __define_token!($(#[$meta])* $name, any(target_arch = "x86", target_arch = "x86_64"), is_x86_feature_detected, $($feature),+);
-    };
-}
+use crate::features::x86::{
+    Aes, Avx, Avx2, Avx512bw, Avx512cd, Avx512dq, Avx512f, Avx512vl, Bmi1, Bmi2, Cmpxchg16b, F16c,
+    Fma, Lzcnt, Movbe, Pclmulqdq, Popcnt, Sse, Sse2, Sse3, Sse41, Sse42, Ssse3,
+};
+use crate::SimdToken;
 
-define_x86_token!(
-    /// Proof that SSE + SSE2 are available (x86-64-v1 baseline level).
-    Sse2Token,
-    "sse",
-    "sse2",
+/// Proof that SSE + SSE2 are available (x86-64-v1 baseline level).
+#[derive(Copy, Clone, PartialEq, Eq, Hash, SimdToken)]
+pub struct Sse2Token(Sse, Sse2);
+
+/// Proof that SSE4.2 + POPCNT are available (x86-64-v2 level).
+#[derive(Copy, Clone, PartialEq, Eq, Hash, SimdToken)]
+pub struct Sse42Token(Sse, Sse2, Sse3, Ssse3, Sse41, Sse42, Popcnt, Cmpxchg16b);
+
+/// Proof that x86-64-v3 (AVX2 + FMA + BMI1/2 + F16C + LZCNT) + PCLMULQDQ + AES are available.
+#[derive(Copy, Clone, PartialEq, Eq, Hash, SimdToken)]
+pub struct Avx2Token(
+    Sse,
+    Sse2,
+    Sse3,
+    Ssse3,
+    Sse41,
+    Sse42,
+    Popcnt,
+    Cmpxchg16b,
+    Avx,
+    Avx2,
+    Fma,
+    Bmi1,
+    Bmi2,
+    F16c,
+    Lzcnt,
+    Movbe,
+    Pclmulqdq,
+    Aes,
 );
 
-define_x86_token!(
-    /// Proof that SSE4.2 + POPCNT are available (x86-64-v2 level).
-    Sse42Token,
-    "sse",
-    "sse2",
-    "sse3",
-    "ssse3",
-    "sse4.1",
-    "sse4.2",
-    "popcnt",
-    "cmpxchg16b",
-);
-
-define_x86_token!(
-    /// Proof that x86-64-v3 (AVX2 + FMA + BMI1/2 + F16C + LZCNT) + PCLMULQDQ + AES are available.
-    Avx2Token,
-    "sse",
-    "sse2",
-    "sse3",
-    "ssse3",
-    "sse4.1",
-    "sse4.2",
-    "popcnt",
-    "cmpxchg16b",
-    "avx",
-    "avx2",
-    "fma",
-    "bmi1",
-    "bmi2",
-    "f16c",
-    "lzcnt",
-    "movbe",
-    "pclmulqdq",
-    "aes",
-);
-
-define_x86_token!(
-    /// Proof that AVX-512 (F + CD + VL + DQ + BW) is available (x86-64-v4 level).
-    Avx512Token,
-    "sse",
-    "sse2",
-    "sse3",
-    "ssse3",
-    "sse4.1",
-    "sse4.2",
-    "popcnt",
-    "cmpxchg16b",
-    "avx",
-    "avx2",
-    "fma",
-    "bmi1",
-    "bmi2",
-    "f16c",
-    "lzcnt",
-    "movbe",
-    "pclmulqdq",
-    "aes",
-    "avx512f",
-    "avx512bw",
-    "avx512cd",
-    "avx512dq",
-    "avx512vl",
+/// Proof that AVX-512 (F + CD + VL + DQ + BW) is available (x86-64-v4 level).
+#[derive(Copy, Clone, PartialEq, Eq, Hash, SimdToken)]
+pub struct Avx512Token(
+    Sse,
+    Sse2,
+    Sse3,
+    Ssse3,
+    Sse41,
+    Sse42,
+    Popcnt,
+    Cmpxchg16b,
+    Avx,
+    Avx2,
+    Fma,
+    Bmi1,
+    Bmi2,
+    F16c,
+    Lzcnt,
+    Movbe,
+    Pclmulqdq,
+    Aes,
+    Avx512f,
+    Avx512bw,
+    Avx512cd,
+    Avx512dq,
+    Avx512vl,
 );
 
 #[deprecated(note = "Renamed to `Sse2Token`")]

@@ -1,4 +1,4 @@
-error: #[simd_entry] does not recognize feature "unknown_feature". Add a mapping in feature_to_trait() for this feature.
+error: #[simd_entry] does not recognize feature "unknown_feature". Add a mapping in simd_tokens_macros/src/lib.rs for this feature.
   --> tests/build_tests/macro_unknown_feature.rs:14:1
    |
 14 | fn unknown_feature_fn(a: f32, token: impl SimdToken) -> f32 {

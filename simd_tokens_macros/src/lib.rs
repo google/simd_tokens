@@ -8,76 +8,272 @@
 
 #[cfg(proc_macro)]
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, quote_spanned};
+use syn::spanned::Spanned;
 use syn::{Expr, Lit, Meta};
 
-/// Maps a single `target_feature` string to its corresponding trait bound path.
+/// `(target_feature_name, witness_type_name)`
+const FEATURES: &[(&str, &str)] = &[
+    // x86 / x86_64
+    ("sse", "Sse"),
+    ("sse2", "Sse2"),
+    ("sse3", "Sse3"),
+    ("ssse3", "Ssse3"),
+    ("sse4.1", "Sse41"),
+    ("sse4.2", "Sse42"),
+    ("popcnt", "Popcnt"),
+    ("cmpxchg16b", "Cmpxchg16b"),
+    ("pclmulqdq", "Pclmulqdq"),
+    ("aes", "Aes"),
+    ("avx", "Avx"),
+    ("avx2", "Avx2"),
+    ("fma", "Fma"),
+    ("bmi1", "Bmi1"),
+    ("bmi2", "Bmi2"),
+    ("f16c", "F16c"),
+    ("lzcnt", "Lzcnt"),
+    ("movbe", "Movbe"),
+    ("vpclmulqdq", "Vpclmulqdq"),
+    ("vaes", "Vaes"),
+    ("avx512f", "Avx512f"),
+    ("avx512bw", "Avx512bw"),
+    ("avx512cd", "Avx512cd"),
+    ("avx512dq", "Avx512dq"),
+    ("avx512vl", "Avx512vl"),
+    ("avx512vpopcntdq", "Avx512vpopcntdq"),
+    ("avx512ifma", "Avx512ifma"),
+    ("avx512vbmi", "Avx512vbmi"),
+    ("avx512vbmi2", "Avx512vbmi2"),
+    ("avx512bitalg", "Avx512bitalg"),
+    ("avx512vnni", "Avx512vnni"),
+    ("gfni", "Gfni"),
+    ("avx512fp16", "Avx512fp16"),
+    // AArch64 (note: "aes" is shared with x86 and maps to `features::Aes` on both)
+    ("neon", "Neon"),
+    ("rdm", "Rdm"),
+    ("dotprod", "Dotprod"),
+    ("fp16", "Fp16"),
+    ("sha2", "Sha2"),
+    ("fhm", "Fhm"),
+    ("fcma", "Fcma"),
+    ("sha3", "Sha3"),
+    ("i8mm", "I8mm"),
+    ("bf16", "Bf16"),
+];
+
+/// Derives `SimdToken`, `Has<Feature>`, and `Debug` implementations for a tuple
+/// struct of feature witness types (such as `x86::Avx2`, `aarch64::Neon`,
+/// `aarch64::Aes`).
 ///
-/// Emits a leading `::` so a local `mod simd_tokens` cannot shadow the trait
-/// bounds added by `#[simd_entry]` (deliberate `extern crate` re-pointing is
-/// out of scope for attribute proc macros).
+/// Combine with `#[derive(Copy, Clone, SimdToken)]`. Works in
+/// `#![forbid(unsafe_code)]` crates.
 ///
-/// Returns a compile error for unrecognized features, which is intentional to
-/// prevent silent mismatches if new CPU features are added in the future.
-fn feature_to_trait(
-    feature: &str,
-    sig: &syn::Signature,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
-    match feature {
-        // x86/x86_64 features
-        "sse" => Ok(quote! { ::simd_tokens::features::Sse }),
-        "sse2" => Ok(quote! { ::simd_tokens::features::Sse2 }),
-        "sse3" => Ok(quote! { ::simd_tokens::features::Sse3 }),
-        "ssse3" => Ok(quote! { ::simd_tokens::features::Ssse3 }),
-        "sse4.1" => Ok(quote! { ::simd_tokens::features::Sse41 }),
-        "sse4.2" => Ok(quote! { ::simd_tokens::features::Sse42 }),
-        "popcnt" => Ok(quote! { ::simd_tokens::features::Popcnt }),
-        "cmpxchg16b" => Ok(quote! { ::simd_tokens::features::Cmpxchg16b }),
-        "pclmulqdq" => Ok(quote! { ::simd_tokens::features::Pclmulqdq }),
-        "aes" => Ok(quote! { ::simd_tokens::features::Aes }),
-        "avx" => Ok(quote! { ::simd_tokens::features::Avx }),
-        "avx2" => Ok(quote! { ::simd_tokens::features::Avx2 }),
-        "fma" => Ok(quote! { ::simd_tokens::features::Fma }),
-        "bmi1" => Ok(quote! { ::simd_tokens::features::Bmi1 }),
-        "bmi2" => Ok(quote! { ::simd_tokens::features::Bmi2 }),
-        "f16c" => Ok(quote! { ::simd_tokens::features::F16c }),
-        "lzcnt" => Ok(quote! { ::simd_tokens::features::Lzcnt }),
-        "movbe" => Ok(quote! { ::simd_tokens::features::Movbe }),
-        "vpclmulqdq" => Ok(quote! { ::simd_tokens::features::Vpclmulqdq }),
-        "vaes" => Ok(quote! { ::simd_tokens::features::Vaes }),
-        "avx512f" => Ok(quote! { ::simd_tokens::features::Avx512f }),
-        "avx512bw" => Ok(quote! { ::simd_tokens::features::Avx512bw }),
-        "avx512cd" => Ok(quote! { ::simd_tokens::features::Avx512cd }),
-        "avx512dq" => Ok(quote! { ::simd_tokens::features::Avx512dq }),
-        "avx512vl" => Ok(quote! { ::simd_tokens::features::Avx512vl }),
-        "avx512vpopcntdq" => Ok(quote! { ::simd_tokens::features::Avx512vpopcntdq }),
-        "avx512ifma" => Ok(quote! { ::simd_tokens::features::Avx512ifma }),
-        "avx512vbmi" => Ok(quote! { ::simd_tokens::features::Avx512vbmi }),
-        "avx512vbmi2" => Ok(quote! { ::simd_tokens::features::Avx512vbmi2 }),
-        "avx512bitalg" => Ok(quote! { ::simd_tokens::features::Avx512bitalg }),
-        "avx512vnni" => Ok(quote! { ::simd_tokens::features::Avx512vnni }),
-        "gfni" => Ok(quote! { ::simd_tokens::features::Gfni }),
-        "avx512fp16" => Ok(quote! { ::simd_tokens::features::Avx512fp16 }),
-        // aarch64 features
-        "neon" => Ok(quote! { ::simd_tokens::features::Neon }),
-        "rdm" => Ok(quote! { ::simd_tokens::features::Rdm }),
-        "dotprod" => Ok(quote! { ::simd_tokens::features::Dotprod }),
-        "fp16" => Ok(quote! { ::simd_tokens::features::Fp16 }),
-        "sha2" => Ok(quote! { ::simd_tokens::features::Sha2 }),
-        "fhm" => Ok(quote! { ::simd_tokens::features::Fhm }),
-        "fcma" => Ok(quote! { ::simd_tokens::features::Fcma }),
-        "sha3" => Ok(quote! { ::simd_tokens::features::Sha3 }),
-        "i8mm" => Ok(quote! { ::simd_tokens::features::I8mm }),
-        "bf16" => Ok(quote! { ::simd_tokens::features::Bf16 }),
-        _ => Err(syn::Error::new_spanned(
-            sig,
-            format!(
-                "#[simd_entry] does not recognize feature \"{}\". \
-                 Add a mapping in feature_to_trait() for this feature.",
-                feature
-            ),
-        )),
+/// # Example
+///
+/// ```ignore
+/// use simd_tokens::aarch64::{Aes, Neon};
+/// use simd_tokens::SimdToken;
+///
+/// #[derive(Copy, Clone, SimdToken)]
+/// pub struct FancyNeon(Neon, Aes);
+/// ```
+#[cfg(proc_macro)]
+#[proc_macro_derive(SimdToken)]
+pub fn derive_simd_token(input: TokenStream) -> TokenStream {
+    derive_simd_token_impl(input.into()).unwrap_or_else(|e| e.to_compile_error()).into()
+}
+
+fn resolve_field_feature(ty: &syn::Type) -> Result<&'static str, syn::Error> {
+    let syn::Type::Path(syn::TypePath { qself: None, path }) = ty else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "expected a feature witness type (e.g. `Avx2` or `x86::Avx2`)",
+        ));
+    };
+    let Some(segment) = path.segments.last() else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "expected a feature witness type (e.g. `Avx2` or `x86::Avx2`)",
+        ));
+    };
+    if !segment.arguments.is_none() {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "expected a feature witness type without generic arguments (e.g. `Avx2` or `x86::Avx2`)",
+        ));
     }
+    let ident = segment.ident.to_string();
+    FEATURES
+        .iter()
+        .find(|(_, witness_name)| *witness_name == ident)
+        .map(|(feature_str, _)| *feature_str)
+        .ok_or_else(|| {
+            syn::Error::new_spanned(
+                ty,
+                format!(
+                    "#[derive(SimdToken)] does not recognize feature witness type `{ident}`; \
+                     expected a witness type from `simd_tokens::x86` or `simd_tokens::aarch64`"
+                ),
+            )
+        })
+}
+
+fn derive_simd_token_impl(
+    input: proc_macro2::TokenStream,
+) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let input: syn::DeriveInput = syn::parse2(input)?;
+    if !input.generics.params.is_empty() {
+        return Err(syn::Error::new_spanned(
+            &input.generics,
+            "#[derive(SimdToken)] does not support generic parameters",
+        ));
+    }
+    let syn::Data::Struct(syn::DataStruct { fields: syn::Fields::Unnamed(fields), .. }) =
+        &input.data
+    else {
+        return Err(syn::Error::new_spanned(
+            &input,
+            "#[derive(SimdToken)] requires a tuple struct of feature witness types",
+        ));
+    };
+
+    let vis = &input.vis;
+    let name = &input.ident;
+    let field_tys: Vec<&syn::Type> = fields.unnamed.iter().map(|f| &f.ty).collect();
+    if field_tys.is_empty() {
+        return Err(syn::Error::new_spanned(
+            &input,
+            "#[derive(SimdToken)] requires at least one feature witness field",
+        ));
+    }
+
+    let mut seen_features = std::collections::BTreeSet::new();
+    let mut feature_impls = Vec::with_capacity(field_tys.len());
+    let mut feature_strs = Vec::with_capacity(field_tys.len());
+    for (idx, ty) in field_tys.iter().enumerate() {
+        let feature_str = resolve_field_feature(ty)?;
+        if !seen_features.insert(feature_str) {
+            return Err(syn::Error::new_spanned(
+                ty,
+                format!(
+                    "#[derive(SimdToken)] found a duplicate feature witness for target feature \
+                     `{feature_str}`; list each feature witness only once"
+                ),
+            ));
+        }
+        feature_strs.push(feature_str);
+        let index = syn::Index::from(idx);
+        // `Has<T>` requires `T: FeatureWitness`, so this impl also rejects a
+        // local type that shadows a witness name. The trait path carries the
+        // field's span so that the error points at the field type.
+        let has_trait = quote_spanned! {ty.span()=> ::simd_tokens::Has<#ty> };
+        feature_impls.push(quote! {
+            impl #has_trait for #name {
+                #[inline(always)]
+                fn get(&self) -> #ty {
+                    self.#index
+                }
+            }
+        });
+    }
+
+    Ok(quote! {
+        impl ::simd_tokens::SimdToken for #name {
+            #[inline(always)]
+            fn try_new() -> ::core::option::Option<Self> {
+                #[cfg(all(#(target_feature = #feature_strs),*))]
+                {
+                    ::core::option::Option::Some(Self(
+                        #(<#field_tys>::try_new()?),*
+                    ))
+                }
+                #[cfg(not(all(#(target_feature = #feature_strs),*)))]
+                {
+                    const SUPPORTED: u8 = 0x00;
+                    const NOT_SUPPORTED: u8 = 0x01;
+                    const SF_FLAG_SET: u8 = 0x80;
+                    const NOT_CHECKED: u8 = 0xFF;
+                    static CACHE: ::core::sync::atomic::AtomicU8 =
+                        ::core::sync::atomic::AtomicU8::new(NOT_CHECKED);
+
+                    #[cold]
+                    #[inline(never)]
+                    fn detect() -> bool {
+                        let supported = #(<#field_tys>::try_new().is_some())&&*;
+                        CACHE.store(
+                            if supported { SUPPORTED } else { NOT_SUPPORTED },
+                            ::core::sync::atomic::Ordering::Relaxed,
+                        );
+                        supported
+                    }
+
+                    let state = CACHE.load(::core::sync::atomic::Ordering::Relaxed);
+                    let supported = if state == SUPPORTED {
+                        true
+                    } else if state < SF_FLAG_SET {
+                        false
+                    } else {
+                        ::core::hint::cold_path();
+                        detect()
+                    };
+                    if supported {
+                        // SAFETY: runtime detection confirmed all required features.
+                        ::core::option::Option::Some(Self(
+                            #(unsafe { <#field_tys>::new_unchecked() }),*
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    }
+                }
+            }
+
+            #[inline(always)]
+            fn as_static(self) -> &'static Self {
+                Self::as_static(self)
+            }
+        }
+
+        #[allow(dead_code)]
+        impl #name {
+            /// Checks CPU features at runtime. Returns `Some(token)` if all
+            /// required features are present. The result is cached after the
+            /// first call.
+            #[inline(always)]
+            #vis fn try_new() -> ::core::option::Option<Self> {
+                <Self as ::simd_tokens::SimdToken>::try_new()
+            }
+
+            /// Returns a `'static` reference to this token, e.g. for use as a
+            /// `&'static dyn Trait` in dispatch tables.
+            ///
+            /// Tokens are zero-sized and stay valid for the lifetime of the
+            /// process, so this needs no allocation or synchronization.
+            #[inline(always)]
+            #vis const fn as_static(self) -> &'static Self {
+                const {
+                    &Self(
+                        // SAFETY: `self` is a token, which proves that all required
+                        // features are available.
+                        #(unsafe { <#field_tys>::new_unchecked() }),*
+                    )
+                }
+            }
+        }
+
+        impl ::core::fmt::Debug for #name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                f.write_str(::core::stringify!(#name))
+            }
+        }
+
+        #(#feature_impls)*
+    })
+}
+
+/// Maps a single feature string to its witness struct identifier in `simd_tokens::features`.
+fn feature_to_witness(feature: &str) -> Option<syn::Ident> {
+    let (_, witness_name) = FEATURES.iter().find(|(f, _)| *f == feature)?;
+    Some(format_ident!("{witness_name}"))
 }
 
 /// Extracts all `target_feature` names enabled on the function.
@@ -370,11 +566,12 @@ fn remove_generic_param(generics: &mut syn::Generics, ident: &syn::Ident) {
 /// The annotated function must take exactly one parameter of type
 /// `impl SimdToken` (or a generic `T: SimdToken`); it is an error if it does
 /// not. The macro reads the `#[target_feature(enable = "...")]` attribute(s),
-/// maps each feature to its corresponding trait, and rewrites the function so
-/// that the token's bound is tightened to `SimdToken + Avx2 + Fma + ..` (the
-/// traits matching the declared features). Only tokens proving those features
-/// are accepted by the type checker; in exchange, calling the function no
-/// longer requires `unsafe`.
+/// maps each feature to its corresponding witness struct, and rewrites the
+/// function so that the token's bound is tightened to
+/// `SimdToken + Has<Avx2> + Has<Fma> + ..` (the `Has` bounds matching the
+/// declared features). Before calling the inner function, the wrapper calls
+/// `Has::<Feature>::get(&token)` for every required feature to obtain the
+/// zero-sized proof witnesses.
 ///
 /// Under the hood the body is compiled as a separate, token-free
 /// `#[target_feature]` function (the *inner function*), which the safe wrapper
@@ -435,6 +632,13 @@ fn simd_entry_impl(
 
     let options = Options::parse(attr)?;
 
+    if let Some(constness) = &sig.constness {
+        return Err(syn::Error::new_spanned(
+            constness,
+            "#[simd_entry] does not support `const fn`: capability tokens are runtime proofs",
+        ));
+    }
+
     // ── `unsafe fn` requires opting in with `still_unsafe` ───────────────────
     //
     // The token proves the CPU features, which is all a `#[target_feature]`
@@ -475,8 +679,30 @@ fn simd_entry_impl(
         ));
     }
 
-    let trait_bounds: Vec<proc_macro2::TokenStream> =
-        features.iter().map(|f| feature_to_trait(f, &sig)).collect::<Result<Vec<_>, _>>()?;
+    let mut witness_idents = Vec::new();
+    let mut trait_bounds = Vec::new();
+    for feature in &features {
+        match feature_to_witness(feature) {
+            Some(witness_ident) => {
+                // Leading `::` so the path resolves from the crate root even
+                // inside modules that shadow `simd_tokens` (and in `simd_tokens`
+                // itself via `extern crate self as simd_tokens`).
+                trait_bounds.push(quote! {
+                    ::simd_tokens::Has<::simd_tokens::features::#witness_ident>
+                });
+                witness_idents.push(witness_ident);
+            }
+            None => {
+                return Err(syn::Error::new_spanned(
+                    &sig,
+                    format!(
+                        "#[simd_entry] does not recognize feature \"{feature}\". \
+                         Add a mapping in simd_tokens_macros/src/lib.rs for this feature.",
+                    ),
+                ));
+            }
+        }
+    }
 
     if let Some((attr, name)) =
         attrs.iter().find_map(|attr| Some((attr, rejected_symbol_attr(attr)?)))
@@ -561,6 +787,7 @@ fn simd_entry_impl(
     // parameter names (nicer rustdoc; synthesized for destructuring patterns).
     let mut wrapper_sig = sig.clone();
     let mut forward_args = Vec::new();
+    let mut wrapper_token_ident: Option<syn::Ident> = None;
     for (index, arg) in wrapper_sig.inputs.iter_mut().enumerate() {
         let syn::FnArg::Typed(pat_type) = arg else {
             // `self` receiver: forwarded via method-call syntax below.
@@ -579,8 +806,9 @@ fn simd_entry_impl(
         pat_type.attrs.clear();
 
         if index == token_param.index {
-            // The token only exists to be type-checked; it is not forwarded.
+            // The token may be unused when `allow_no_target_features` is set.
             pat_type.attrs.push(syn::parse_quote! { #[allow(unused_variables)] });
+            wrapper_token_ident = Some(arg_ident);
             if let TokenParamKind::ImplTrait = token_param.kind {
                 let syn::Type::ImplTrait(impl_trait) = &mut *pat_type.ty else {
                     unreachable!("token parameter was identified as `impl SimdToken`");
@@ -593,6 +821,8 @@ fn simd_entry_impl(
             forward_args.push(arg_ident);
         }
     }
+    let wrapper_token_ident = wrapper_token_ident.expect("token parameter index was located");
+
     if let TokenParamKind::Generic(ident) = &token_param.kind
         && !trait_bounds.is_empty()
     {
@@ -634,7 +864,7 @@ fn simd_entry_impl(
 
     // Turbofish for forwarding explicit generics. Lifetimes are always inferred,
     // and so are any argument-position `impl Trait` parameters: naming the
-    // explicit generics of a function that also has `impl Trait` arguments has
+    // explicit generics of a function that also has `impl Trait` parameters has
     // been legal since Rust 1.63 (`explicit_generic_args_with_impl_trait`).
     let turbofish_args: Vec<&syn::Ident> = inner_sig
         .generics
@@ -653,6 +883,17 @@ fn simd_entry_impl(
     } else {
         quote! { #inner_name #turbofish (#(#forward_args),*) }
     };
+
+    // Call `Has::<Feature>::get` on every required feature before entering
+    // `unsafe`. Because `<Feature>` witness values can only be constructed
+    // inside `simd_tokens` when the CPU feature is supported, all `.get()`
+    // calls returning normally proves all enabled target features are
+    // available.
+    let witness_checks = (!witness_idents.is_empty()).then(|| {
+        quote! {
+            let _ = (#(::simd_tokens::Has::<::simd_tokens::features::#witness_idents>::get(&#wrapper_token_ident),)*);
+        }
+    });
 
     // Without target features the inner call is not actually unsafe.
     let allow_unused_unsafe = features.is_empty().then(|| quote! { #[allow(unused_unsafe)] });
@@ -698,7 +939,9 @@ fn simd_entry_impl(
         #allow_unused_unsafe
         #allow_deprecated
         #vis #wrapper_sig {
-            // SAFETY: the token parameter proves the required CPU features are present.
+            #witness_checks
+            // SAFETY: every required `Has::<Feature>::get` call above returned
+            // its `<Feature>` proof witness, guaranteeing the CPU features are present.
             unsafe { #call }
         }
     })
@@ -844,12 +1087,25 @@ mod tests {
         let result = simd_entry_impl(quote! { expose_raw_variant = my_func_raw }, item).unwrap();
         let result_str = result.to_string();
 
-        // The wrapper keeps the original name and gains the feature bounds.
+        // The wrapper keeps the original name and gains the feature bounds + `.get()` calls.
         expect_that!(
             result_str,
             contains_substring(
                 "pub fn my_func (x : i32 , # [allow (unused_variables)] token : impl SimdToken + \
-                 :: simd_tokens :: features :: Avx2 + :: simd_tokens :: features :: Fma) -> i32"
+                 :: simd_tokens :: Has < :: simd_tokens :: features :: Avx2 > + \
+                 :: simd_tokens :: Has < :: simd_tokens :: features :: Fma >) -> i32"
+            )
+        );
+        expect_that!(
+            result_str,
+            contains_substring(
+                ":: simd_tokens :: Has :: < :: simd_tokens :: features :: Avx2 > :: get (& token)"
+            )
+        );
+        expect_that!(
+            result_str,
+            contains_substring(
+                ":: simd_tokens :: Has :: < :: simd_tokens :: features :: Fma > :: get (& token)"
             )
         );
         // The inner function keeps the target_feature, drops the token, same visibility.
@@ -932,7 +1188,7 @@ mod tests {
             result_str,
             contains_substring(
                 "pub (crate) fn process (& self , v : f32 , # [allow (unused_variables)] token : \
-                 impl SimdToken + :: simd_tokens :: features :: Avx2) -> f32"
+                 impl SimdToken + :: simd_tokens :: Has < :: simd_tokens :: features :: Avx2 >) -> f32"
             )
         );
         expect_that!(result_str, contains_substring("[`Self::process`]"));
@@ -950,7 +1206,10 @@ mod tests {
         let result_str = result.to_string();
 
         // Wrapper: token generic gains the feature bound.
-        expect_that!(result_str, contains_substring("T : :: simd_tokens :: features :: Avx2"));
+        expect_that!(
+            result_str,
+            contains_substring("T : :: simd_tokens :: Has < :: simd_tokens :: features :: Avx2 >")
+        );
         // Inner function: `T` and its where-predicate are gone, `U`'s stays.
         expect_that!(
             result_str,
@@ -1154,5 +1413,119 @@ mod tests {
         // The exposed raw variant is user-facing, so it is deprecated too, and
         // the wrapper has to silence its own call into it.
         expect_that!(result, contains_substring("allow (deprecated)"));
+    }
+
+    #[gtest]
+    fn test_simd_entry_impl_rejects_const_fn() {
+        let item = quote! {
+            #[target_feature(enable = "avx2")]
+            const fn my_func(x: i32, token: impl SimdToken) -> i32 {
+                x
+            }
+        };
+        let err = simd_entry_impl(quote! {}, item).unwrap_err();
+        expect_that!(err.to_string(), contains_substring("does not support `const fn`"));
+    }
+
+    #[gtest]
+    fn test_derive_tuple_struct_emits_has_impls() {
+        let input = quote! {
+            pub struct FancyNeon(Neon, Aes);
+        };
+        let out = derive_simd_token_impl(input).unwrap().to_string();
+        expect_that!(out, contains_substring("impl :: simd_tokens :: Has < Neon > for FancyNeon"));
+        expect_that!(out, contains_substring("impl :: simd_tokens :: Has < Aes > for FancyNeon"));
+        expect_that!(out, contains_substring("impl :: core :: fmt :: Debug for FancyNeon"));
+        expect_that!(out, contains_substring("const { & Self ("));
+    }
+
+    #[gtest]
+    fn test_derive_qualified_single_aes() {
+        let input = quote! {
+            struct X86AesOnly(x86::Aes);
+        };
+        let out = derive_simd_token_impl(input).unwrap().to_string();
+        expect_that!(
+            out,
+            contains_substring("impl :: simd_tokens :: Has < x86 :: Aes > for X86AesOnly")
+        );
+        expect_that!(out, contains_substring("const { & Self ("));
+    }
+
+    #[gtest]
+    fn test_derive_rejects_empty_tuple_struct() {
+        let input = quote! {
+            struct Empty();
+        };
+        let err = derive_simd_token_impl(input).unwrap_err();
+        expect_that!(
+            err.to_string(),
+            contains_substring("requires at least one feature witness field")
+        );
+    }
+
+    #[gtest]
+    fn test_derive_rejects_generics() {
+        let input = quote! {
+            struct GenericToken<T>(T);
+        };
+        let err = derive_simd_token_impl(input).unwrap_err();
+        expect_that!(err.to_string(), contains_substring("does not support generic parameters"));
+    }
+
+    #[gtest]
+    fn test_derive_rejects_duplicate_feature_witness() {
+        for input in [
+            quote! { struct DupToken(Sse, Sse2, Sse); },
+            quote! { struct DupToken(Avx2, x86::Avx2); },
+            // Keyed by target feature, so mixing architectures is rejected too
+            // (such a token could never be constructed anyway).
+            quote! { struct DupToken(x86::Aes, aarch64::Aes); },
+        ] {
+            let err = derive_simd_token_impl(input).unwrap_err();
+            expect_that!(err.to_string(), contains_substring("duplicate feature witness"));
+        }
+    }
+
+    #[gtest]
+    fn test_derive_rejects_generic_args_on_field_type() {
+        let input = quote! {
+            struct BadToken(Avx2<u32>);
+        };
+        let err = derive_simd_token_impl(input).unwrap_err();
+        expect_that!(err.to_string(), contains_substring("without generic arguments"));
+    }
+
+    #[gtest]
+    fn test_derive_rejects_non_tuple_struct() {
+        for input in [
+            quote! { struct UnitToken; },
+            quote! { struct NamedToken { avx2: Avx2 } },
+            quote! { enum NotAStruct { A } },
+        ] {
+            let err = derive_simd_token_impl(input).unwrap_err();
+            expect_that!(err.to_string(), contains_substring("requires a tuple struct"));
+        }
+    }
+
+    #[gtest]
+    fn test_derive_rejects_unknown_field_type() {
+        let input = quote! {
+            struct BadToken(u32);
+        };
+        let err = derive_simd_token_impl(input).unwrap_err();
+        expect_that!(
+            err.to_string(),
+            contains_substring("does not recognize feature witness type `u32`")
+        );
+    }
+
+    #[gtest]
+    fn test_derive_rejects_non_path_field_type() {
+        let input = quote! {
+            struct BadToken(&'static Avx2);
+        };
+        let err = derive_simd_token_impl(input).unwrap_err();
+        expect_that!(err.to_string(), contains_substring("expected a feature witness type"));
     }
 }

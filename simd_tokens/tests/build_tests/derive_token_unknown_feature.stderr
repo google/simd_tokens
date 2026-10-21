@@ -1,0 +1,5 @@
+error: #[derive(SimdToken)] does not recognize feature witness type `u32`; expected a witness type from `simd_tokens::x86` or `simd_tokens::aarch64`
+  --> tests/build_tests/derive_token_unknown_feature.rs:12:17
+   |
+12 | struct BadToken(u32);
+   |                 ^^^

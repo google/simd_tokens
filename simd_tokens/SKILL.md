@@ -43,7 +43,9 @@ and stores.
     -   By convention, place the token argument (`token: impl SimdToken`) as the
         last argument.
     -   `#[simd_entry]` generates a safe wrapper whose token bound requires the
-        matching feature trait (`SimdToken + Avx2`).
+        matching `Has<Feature>` capability trait (`SimdToken + Has<x86::Avx2>`)
+        and calls `Has::<Feature>::get(&token)` on each required feature to
+        extract its zero-sized proof witness before entering the inner function.
 
 2.  **Dispatch by checking tokens in descending capability order**:
 
@@ -152,7 +154,7 @@ static AVX2_TOKEN: OnceLock<Option<Avx2Token>> = OnceLock::new();
 
 -   `try_new()` **already caches** the result internally using an atomic
     (`AtomicU8`). The first call detects features; subsequent calls are a single
-    relaxed atomic load.
+    atomic load.
 -   Tokens are **zero-sized types (ZST)** (`size_of::<Avx2Token>() == 0`) and
     implement `Copy`. Passing or creating them has zero heap and zero runtime
     memory cost.
@@ -299,7 +301,24 @@ based on whether the helper calls SIMD intrinsics:
 -   **AArch64**: `NeonToken` ⊂ `NeonDotprodToken` ⊂ `NeonI8mmToken`
 -   **Fallback**: `ScalarToken` (always succeeds; use with
     `#[simd_entry(allow_no_target_features)]`)
+-   **Custom tokens**: Individual feature witness types live in
+    `simd_tokens::x86` and `simd_tokens::aarch64` (e.g. `x86::Avx512vbmi`,
+    `aarch64::Sha3`). For combinations not covered by predefined tiers, derive
+    `SimdToken` on a tuple struct without `unsafe` (include every feature listed
+    in `#[target_feature(enable = "...")]`, as implied features are not expanded
+    automatically; `#[derive(SimdToken)]` implements `Debug` automatically, so
+    do not also derive `Debug`, while `PartialEq, Eq, Hash` can optionally be
+    derived alongside `Copy, Clone`):
 
-Tokens form a capability hierarchy: wider tokens implement the trait bounds of
-their subsets (e.g., `Avx2Token` implements `Sse2`). Higher-capability tokens
-can be passed directly to lower-capability kernels without conversion.
+    ```rust
+    use simd_tokens::x86::{Avx512f, Avx512vbmi, Avx512vnni};
+    use simd_tokens::SimdToken;
+
+    #[derive(Copy, Clone, SimdToken)]
+    pub struct IcelakeToken(Avx512f, Avx512vbmi, Avx512vnni);
+    ```
+
+Tokens form a capability hierarchy: wider tokens implement the `Has<Feature>`
+bounds of their subsets (e.g., `Avx2Token` implements `Has<x86::Sse2>`).
+Higher-capability tokens can be passed directly to lower-capability kernels
+without conversion.

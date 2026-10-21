@@ -6,12 +6,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! Feature marker traits for unsupported SIMD architectures.
+use simd_tokens::SimdToken;
 
-macro_rules! __impl_feature_trait {
-    ($token:ident, $other:tt) => {
-        compile_error!(concat!("Feature not supported on this architecture: ", $other));
-    };
-}
+#[derive(Copy, Clone, SimdToken)]
+struct BadToken(u32);
 
-pub(crate) use __impl_feature_trait;
+fn main() {}

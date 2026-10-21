@@ -55,8 +55,8 @@ fn sum(data: &[f32], token: impl SimdToken) -> f32 {
 ```
 
 `#[simd_entry]` makes `sum` safe to call. The token's bound is tightened to
-`SimdToken + Avx2` to match the declared `target_feature`s, so only tokens that
-prove AVX2 are accepted.
+`SimdToken + Has<Avx2>` to match the declared `target_feature`s, so only tokens
+that prove AVX2 are accepted.
 
 **2. Obtain a token and call it:**
 
@@ -93,17 +93,19 @@ pub fn process(data: &mut [f32], token: impl SimdToken) { /* intrinsics */ }
 fn __process_inner(data: &mut [f32]) { /* intrinsics */ }
 
 #[inline(always)]
-pub fn process(data: &mut [f32], token: impl SimdToken + Avx2 + Fma) {
+pub fn process(
+    data: &mut [f32],
+    token: impl SimdToken + Has<Avx2> + Has<Fma>,
+) {
     // SAFETY: `token` proves the required CPU features are present.
     unsafe { __process_inner(data) }
 }
 ```
 
 `process` keeps the original name and signature, except that the token's bound
-is tightened to the traits matching the declared features. This is the safe
-entry point used at dispatch sites. Unless requested (see below), the inner
-function is private and hidden from documentation — it is an implementation
-detail.
+is tightened to the `Has<Feature>` bounds matching the declared features. Unless
+requested (see below), the inner function is private and hidden from
+documentation — it is an implementation detail.
 
 The token parameter may appear at any position and can be spelled either as
 `impl SimdToken` or as a named generic (`fn f<T: SimdToken>(.., token: T)`; the
@@ -116,7 +118,7 @@ inner function using `expose_raw_variant`. It then has the same visibility as
 the wrapper:
 
 ```rust
-#[simd_entry(expose_raw_variant = "stage_one_raw")]
+#[simd_entry(expose_raw_variant = stage_one_raw)]
 #[target_feature(enable = "avx2")]
 pub fn stage_one(data: &mut [f32], token: impl SimdToken) { /* intrinsics */ }
 
@@ -136,13 +138,13 @@ requires `unsafe` everywhere else.
 ### Token Bounds
 
 The rewritten function is generic over its token parameter. It accepts *any*
-token type that implements the required feature traits — it is not tied to one
-specific token.
+token type that implements the required `Has<Feature>` bounds — it is not tied
+to one specific token.
 
 For example, a function annotated with `#[target_feature(enable = "avx2")]`
-requires `impl SimdToken + Avx2`. Both `Avx2Token` and `Avx512Token` implement
-`Avx2`, so either can be passed. Conversely, `Sse42Token` does *not* implement
-`Avx2`, so passing it is a compile-time error.
+requires `impl SimdToken + Has<Avx2>`. `Avx2Token` and `Avx512Token` both
+implement `Has<Avx2>`, so either can be passed. Conversely, `Sse42Token` does
+*not* implement `Has<Avx2>`, so passing it is a compile-time error.
 
 ### Predefined Tokens
 
@@ -179,6 +181,36 @@ the previous levels for that architecture.
 
 <!-- mdformat on -->
 
+### Custom Tokens
+
+Individual CPU feature witness types live in `simd_tokens::x86` and
+`simd_tokens::aarch64` (for example `x86::Avx512vbmi` or `aarch64::Sha3`).
+
+When a kernel needs a combination of features not covered by the predefined
+tokens, derive `SimdToken` on a tuple struct containing those feature witness
+types. It requires no `unsafe` in caller code and works cleanly in
+`#![forbid(unsafe_code)]` crates:
+
+```rust
+use simd_tokens::x86::{Avx2, Vaes, Vpclmulqdq};
+use simd_tokens::{simd_entry, SimdToken};
+
+/// Proof that AVX2 + VAES + VPCLMULQDQ are available.
+#[derive(Copy, Clone, SimdToken)]
+pub struct Avx2VaesToken(Avx2, Vaes, Vpclmulqdq);
+
+#[simd_entry]
+#[target_feature(enable = "avx2,vaes,vpclmulqdq")]
+fn encrypt(blocks: &mut [[u8; 32]], token: impl SimdToken) {
+    // ...
+}
+```
+
+Note that `#[simd_entry]` checks every feature listed in
+`#[target_feature(enable = "...")]` literally without expanding implied
+features, so a custom token must include a witness field for every feature named
+in `#[target_feature(enable = "...")]` on the functions it is passed to.
+
 ### Dispatch Example
 
 A common pattern is to try tokens from most to least capable and fall back to
@@ -199,9 +231,9 @@ pub fn process(data: &[f32], threshold: f32) -> f32 {
 ```
 
 `try_new()` performs runtime feature detection on the first call and caches the
-result. Subsequent calls are a single relaxed atomic load. The token itself is a
-zero-sized type with no runtime cost. When compiled with `target_feature` flags,
-the runtime check is optimized out entirely.
+result in a single atomic byte. Subsequent calls are a single atomic load. The
+token itself is a zero-sized type with no runtime cost. When compiled with
+matching `target_feature` flags, the runtime check is optimized out completely.
 
 #### Trait-Based Dispatch (`as_static`)
 

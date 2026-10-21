@@ -8,22 +8,13 @@
 
 use simd_tokens::{simd_entry, SimdToken};
 
-#[derive(Copy, Clone)]
-struct PartialToken;
-
-impl SimdToken for PartialToken {
-    fn try_new() -> Option<Self> {
-        Some(Self)
-    }
-}
-
-// Implement only one feature (Sse / Neon)
+// Implement only one feature (Sse / Neon), not Sse2 / Aes.
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-unsafe impl simd_tokens::features::Sse for PartialToken {}
+#[derive(Copy, Clone, SimdToken)]
+struct PartialToken(simd_tokens::x86::Sse);
 #[cfg(target_arch = "aarch64")]
-unsafe impl simd_tokens::features::Neon for PartialToken {}
-
-// We do NOT implement Sse2 / Aes.
+#[derive(Copy, Clone, SimdToken)]
+struct PartialToken(simd_tokens::aarch64::Neon);
 
 #[simd_entry]
 #[cfg_attr(any(target_arch = "x86", target_arch = "x86_64"), target_feature(enable = "sse,sse2"))]
@@ -33,7 +24,7 @@ fn require_multiple(a: f32, token: impl SimdToken) -> f32 {
 }
 
 fn main() {
-    let token = PartialToken;
+    let token = PartialToken::try_new().unwrap();
     // This should fail to compile because PartialToken does not implement all required feature
     // traits.
     let _ = require_multiple(1.0, token);

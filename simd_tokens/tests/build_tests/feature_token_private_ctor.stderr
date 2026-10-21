@@ -1,0 +1,27 @@
+error[E0603]: tuple struct constructor `Avx512f` is private
+  --> tests/build_tests/feature_token_private_ctor.rs:14:37
+   |
+14 |     let _forged = simd_tokens::x86::Avx512f(());
+   |                                     ^^^^^^^ private tuple struct constructor
+   |
+  ::: src/features/mod.rs
+   |
+   |             pub struct $token_name(());
+   |                                    -- a constructor is private if any of the fields is private
+   |
+note: the tuple struct constructor `Avx512f` is defined here
+  --> src/features/mod.rs
+   |
+   |               pub struct $token_name(());
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+  ::: src/features/x86.rs
+   |
+   | / super::__define_features!(
+   | |     arch_cfg = any(target_arch = "x86", target_arch = "x86_64"),
+   | |     detect_macro = is_x86_feature_detected,
+   | |     features = [
+...  |
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `super::__define_features` (in Nightly builds, run with -Z macro-backtrace for more info)
