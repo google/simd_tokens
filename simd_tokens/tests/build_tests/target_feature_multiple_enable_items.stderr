@@ -1,0 +1,49 @@
+error[E0277]: the trait bound `PartialToken: Has<Sse2>` is not satisfied
+  --> tests/build_tests/target_feature_multiple_enable_items.rs:37:48
+   |
+37 |     let _ = require_multiple_enable_items(1.0, token);
+   |             -----------------------------      ^^^^^ unsatisfied trait bound
+   |             |
+   |             required by a bound introduced by this call
+   |
+help: the trait `Has<Sse2>` is not implemented for `PartialToken`
+      but trait `Has<Sse>` is implemented for it
+  --> tests/build_tests/target_feature_multiple_enable_items.rs:13:23
+   |
+13 | #[derive(Copy, Clone, SimdToken)]
+   |                       ^^^^^^^^^
+   = help: for that trait implementation, expected `Sse`, found `Sse2`
+note: required by a bound in `require_multiple_enable_items`
+  --> tests/build_tests/target_feature_multiple_enable_items.rs:21:1
+   |
+21 | #[simd_entry]
+   | ^^^^^^^^^^^^^ required by this bound in `require_multiple_enable_items`
+...
+29 | fn require_multiple_enable_items(a: f32, token: impl SimdToken) -> f32 {
+   |    ----------------------------- required by a bound in this function
+   = note: this error originates in the derive macro `SimdToken` which comes from the expansion of the attribute macro `simd_entry` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `PartialToken: Has<Sse3>` is not satisfied
+  --> tests/build_tests/target_feature_multiple_enable_items.rs:37:48
+   |
+37 |     let _ = require_multiple_enable_items(1.0, token);
+   |             -----------------------------      ^^^^^ unsatisfied trait bound
+   |             |
+   |             required by a bound introduced by this call
+   |
+help: the trait `Has<Sse3>` is not implemented for `PartialToken`
+      but trait `Has<Sse>` is implemented for it
+  --> tests/build_tests/target_feature_multiple_enable_items.rs:13:23
+   |
+13 | #[derive(Copy, Clone, SimdToken)]
+   |                       ^^^^^^^^^
+   = help: for that trait implementation, expected `Sse`, found `Sse3`
+note: required by a bound in `require_multiple_enable_items`
+  --> tests/build_tests/target_feature_multiple_enable_items.rs:21:1
+   |
+21 | #[simd_entry]
+   | ^^^^^^^^^^^^^ required by this bound in `require_multiple_enable_items`
+...
+29 | fn require_multiple_enable_items(a: f32, token: impl SimdToken) -> f32 {
+   |    ----------------------------- required by a bound in this function
+   = note: this error originates in the derive macro `SimdToken` which comes from the expansion of the attribute macro `simd_entry` (in Nightly builds, run with -Z macro-backtrace for more info)

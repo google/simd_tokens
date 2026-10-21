@@ -54,6 +54,24 @@ fn test_multi_feature_gated() {
     expect_eq!(result, 3.0);
 }
 
+// rustc accepts several `enable` items in one `#[target_feature]` attribute, as
+// well as a trailing comma. `#[simd_entry]` requires (and enables) all of them.
+#[simd_entry]
+#[cfg_attr(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    target_feature(enable = "sse", enable = "sse2",)
+)]
+#[cfg_attr(target_arch = "aarch64", target_feature(enable = "neon", enable = "aes",))]
+fn multiple_enable_items(a: f32, b: f32, token: impl SimdToken) -> f32 {
+    a + b
+}
+
+#[gtest]
+fn test_multiple_enable_items() {
+    let token = FeatureToken::try_new().unwrap();
+    expect_eq!(multiple_enable_items(1.0, 2.0, token), 3.0);
+}
+
 // Wildcard pattern (`_: impl SimdToken`) still receives witness extraction.
 #[simd_entry]
 #[cfg_attr(any(target_arch = "x86", target_arch = "x86_64"), target_feature(enable = "sse"))]
@@ -119,8 +137,7 @@ fn test_calls_other_entry() {
 // parameter.
 #[gtest]
 fn test_raw_variant() {
-    // SAFETY: FeatureToken::try_new() succeeded above in the same process, so the
-    // baseline feature (sse / neon) is present.
+    FeatureToken::try_new().expect("FeatureToken features (sse+sse2 / neon+aes) must be available");
     let result = unsafe { feature_gated_raw(1.0, 2.0) };
     expect_eq!(result, 3.0);
     let result = unsafe { multi_feature_gated_kernel(1.0, 2.0) };
@@ -130,6 +147,7 @@ fn test_raw_variant() {
 // The raw variant of the generic form drops the token's type parameter entirely.
 #[gtest]
 fn test_generic_raw_variant() {
+    FeatureToken::try_new().expect("FeatureToken features (sse+sse2 / neon+aes) must be available");
     let result = unsafe { generic_token_inline_raw(1.0, 2.0) };
     expect_eq!(result, 3.0);
     let result = unsafe { generic_token_where_raw(1.0, 2.0) };
@@ -150,7 +168,6 @@ fn default_named(a: f32, token: impl SimdToken) -> f32 {
 fn test_raw_variant_default_name() {
     let token = FeatureToken::try_new().unwrap();
     expect_eq!(default_named(2.0, token), 6.0);
-    // SAFETY: FeatureToken::try_new() succeeded, so the baseline feature is present.
     expect_eq!(unsafe { default_named_raw(2.0) }, 6.0);
 }
 
@@ -344,11 +361,24 @@ unsafe fn raw_add(a: f32, b: f32, token: impl SimdToken) -> f32 {
     a + b
 }
 
+#[allow(unsafe_op_in_unsafe_fn)]
+#[deny(unused_unsafe)]
+#[simd_entry(still_unsafe)]
+#[cfg_attr(any(target_arch = "x86", target_arch = "x86_64"), target_feature(enable = "sse"))]
+#[cfg_attr(target_arch = "aarch64", target_feature(enable = "neon"))]
+unsafe fn raw_feature_add(a: f32, b: f32, token: impl SimdToken) -> f32 {
+    a + b
+}
+
 #[gtest]
 fn test_unsafe_function() {
     let token = ScalarToken::try_new().unwrap();
     let result = unsafe { raw_add(1.0, 2.0, token) };
     expect_eq!(result, 3.0);
+
+    let feature_token = FeatureToken::try_new().unwrap();
+    let feature_result = unsafe { raw_feature_add(1.0, 2.0, feature_token) };
+    expect_eq!(feature_result, 3.0);
 }
 
 // No return type (unit function)

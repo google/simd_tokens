@@ -10,7 +10,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned;
-use syn::{Expr, Lit, Meta};
+use syn::{Expr, Lit};
 
 /// `(target_feature_name, witness_type_name)`
 const FEATURES: &[(&str, &str)] = &[
@@ -280,27 +280,40 @@ fn feature_to_witness(feature: &str) -> Option<syn::Ident> {
 ///
 /// Parses `#[target_feature(enable = "feature1,feature2,...")]` attributes and
 /// returns the sorted set of individual features (empty if there are none).
-fn extract_features(attrs: &[syn::Attribute]) -> std::collections::BTreeSet<String> {
+///
+/// Fails closed: any `#[target_feature]` attribute that is not a list of
+/// `enable = "..."` items is an error. rustc accepts more than the single
+/// `enable = "..."` form (e.g. `#[target_feature(enable = "a", enable = "b")]`
+/// or a trailing comma), and silently skipping such an attribute would leave
+/// its features unchecked by the safe wrapper.
+fn extract_features(
+    attrs: &[syn::Attribute],
+) -> Result<std::collections::BTreeSet<String>, syn::Error> {
     let mut features = std::collections::BTreeSet::new();
     for attr in attrs {
         if !attr.path().is_ident("target_feature") {
             continue;
         }
-        let Meta::List(meta_list) = &attr.meta else {
-            continue;
-        };
-        let Ok(name_value) = syn::parse2::<syn::MetaNameValue>(meta_list.tokens.clone()) else {
-            continue;
-        };
-        if !name_value.path.is_ident("enable") {
-            continue;
+        let items = attr.parse_args_with(
+            syn::punctuated::Punctuated::<syn::MetaNameValue, syn::Token![,]>::parse_terminated,
+        )?;
+        for name_value in items {
+            if !name_value.path.is_ident("enable") {
+                return Err(syn::Error::new_spanned(
+                    &name_value.path,
+                    "#[simd_entry] expected `enable = \"...\"` in #[target_feature(...)]",
+                ));
+            }
+            let Expr::Lit(syn::ExprLit { lit: Lit::Str(lit_str), .. }) = &name_value.value else {
+                return Err(syn::Error::new_spanned(
+                    &name_value.value,
+                    "#[simd_entry] expected a string literal in #[target_feature(enable = ...)]",
+                ));
+            };
+            features.extend(lit_str.value().split(',').map(|s| s.trim().to_string()));
         }
-        let Expr::Lit(syn::ExprLit { lit: Lit::Str(lit_str), .. }) = &name_value.value else {
-            continue;
-        };
-        features.extend(lit_str.value().split(',').map(|s| s.trim().to_string()));
     }
-    features
+    Ok(features)
 }
 
 /// Parsed attribute options for the `#[simd_entry]` attribute macro.
@@ -668,7 +681,7 @@ fn simd_entry_impl(
 
     // ── Collect features and split attributes ────────────────────────────────
 
-    let features = extract_features(&attrs);
+    let features = extract_features(&attrs)?;
 
     if features.is_empty() && !options.allow_no_target_features {
         return Err(syn::Error::new_spanned(
@@ -726,10 +739,17 @@ fn simd_entry_impl(
     let deprecated_attrs: &[&str] = &["deprecated"];
     let wrapper_attrs: Vec<_> =
         attrs.iter().filter(|attr| !attr_is_any_of(attr, INNER_ONLY_ATTRS)).collect();
+    // The user's `#[target_feature]` attributes are not forwarded verbatim:
+    // the inner function gets exactly the feature set the wrapper checks, so a
+    // feature the macro did not see can never be enabled behind its back.
     let inner_attrs: Vec<_> = attrs
         .iter()
+        .filter(|attr| !attr.path().is_ident("target_feature"))
         .filter(|attr| inner_exposed || !attr_is_any_of(attr, deprecated_attrs))
         .collect();
+    let checked_features = features.iter().cloned().collect::<Vec<_>>().join(",");
+    let inner_target_feature =
+        (!features.is_empty()).then(|| quote! { #[target_feature(enable = #checked_features)] });
     let allow_deprecated = (inner_exposed
         && attrs.iter().any(|attr| attr_is_any_of(attr, deprecated_attrs)))
     .then(|| quote! { #[allow(deprecated)] });
@@ -919,6 +939,7 @@ fn simd_entry_impl(
             #[doc = #inner_doc]
             #[doc = ""]
             #(#inner_attrs)*
+            #inner_target_feature
             #vis #inner_sig #block
         }
     } else {
@@ -927,6 +948,7 @@ fn simd_entry_impl(
         quote! {
             #[doc(hidden)]
             #(#inner_attrs)*
+            #inner_target_feature
             #inner_sig #block
         }
     };
@@ -956,7 +978,7 @@ mod tests {
     #[gtest]
     fn test_extract_features_empty() {
         let attrs: Vec<Attribute> = vec![];
-        let features = extract_features(&attrs);
+        let features = extract_features(&attrs).unwrap();
         expect_true!(features.is_empty());
     }
 
@@ -966,14 +988,14 @@ mod tests {
             syn::parse_quote! { #[inline] },
             syn::parse_quote! { #[cfg(target_arch = "x86_64")] },
         ];
-        let features = extract_features(&attrs);
+        let features = extract_features(&attrs).unwrap();
         expect_true!(features.is_empty());
     }
 
     #[gtest]
     fn test_extract_features_single() {
         let attrs: Vec<Attribute> = vec![syn::parse_quote! { #[target_feature(enable = "avx2")] }];
-        let features = extract_features(&attrs);
+        let features = extract_features(&attrs).unwrap();
         let expected =
             ["avx2"].iter().map(|s| s.to_string()).collect::<std::collections::BTreeSet<_>>();
         expect_eq!(features, expected);
@@ -983,7 +1005,7 @@ mod tests {
     fn test_extract_features_multiple_comma_separated() {
         let attrs: Vec<Attribute> =
             vec![syn::parse_quote! { #[target_feature(enable = "avx2,fma,sse4.1")] }];
-        let features = extract_features(&attrs);
+        let features = extract_features(&attrs).unwrap();
         let expected = ["avx2", "fma", "sse4.1"]
             .iter()
             .map(|s| s.to_string())
@@ -998,7 +1020,7 @@ mod tests {
             syn::parse_quote! { #[inline] },
             syn::parse_quote! { #[target_feature(enable = "fma,sse2")] },
         ];
-        let features = extract_features(&attrs);
+        let features = extract_features(&attrs).unwrap();
         let expected = ["avx2", "fma", "sse2"]
             .iter()
             .map(|s| s.to_string())
@@ -1007,23 +1029,48 @@ mod tests {
     }
 
     #[gtest]
-    fn test_extract_features_malformed_ignored() {
+    fn test_extract_features_malformed_rejected() {
+        for attr in [
+            quote! { #[target_feature(disable = "avx2")] },
+            quote! { #[target_feature(enable = 123)] },
+            quote! { #[target_feature = "enable = avx2"] },
+            quote! { #[target_feature] },
+        ] {
+            let attrs: Vec<Attribute> = vec![syn::parse_quote! { #attr }];
+            expect_true!(extract_features(&attrs).is_err(), "{attr}");
+        }
+    }
+
+    // rustc accepts these forms, so they must not be skipped.
+    #[gtest]
+    fn test_extract_features_multiple_enable_items_and_trailing_comma() {
         let attrs: Vec<Attribute> = vec![
-            // Not target_feature
-            syn::parse_quote! { #[inline] },
-            // Wrong path inside list
-            syn::parse_quote! { #[target_feature(disable = "avx2")] },
-            // Wrong value type
-            syn::parse_quote! { #[target_feature(enable = 123)] },
-            // Not a list
-            syn::parse_quote! { #[target_feature = "enable = avx2"] },
-            // Valid one should still be extracted
-            syn::parse_quote! { #[target_feature(enable = "neon")] },
+            syn::parse_quote! { #[target_feature(enable = "sse2")] },
+            syn::parse_quote! { #[target_feature(enable = "avx2", enable = "avx512f")] },
+            syn::parse_quote! { #[target_feature(enable = "fma",)] },
         ];
-        let features = extract_features(&attrs);
-        let expected =
-            ["neon"].iter().map(|s| s.to_string()).collect::<std::collections::BTreeSet<_>>();
+        let features = extract_features(&attrs).unwrap();
+        let expected = ["avx2", "avx512f", "fma", "sse2"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<std::collections::BTreeSet<_>>();
         expect_eq!(features, expected);
+    }
+
+    #[gtest]
+    fn test_simd_entry_impl_reemits_checked_target_features_only() {
+        let item = quote! {
+            #[target_feature(enable = "sse2")]
+            #[target_feature(enable = "avx2", enable = "avx512f",)]
+            fn my_func(token: impl SimdToken) {}
+        };
+        let result = simd_entry_impl(quote! {}, item).unwrap().to_string();
+        expect_that!(
+            result,
+            contains_substring("# [target_feature (enable = \"avx2,avx512f,sse2\")]")
+        );
+        expect_that!(result, not(contains_substring("enable = \"sse2\"")));
+        expect_that!(result, contains_substring("Has < :: simd_tokens :: features :: Avx512f >"));
     }
 
     #[gtest]
