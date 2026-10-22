@@ -16,7 +16,7 @@ members = [
 
 [workspace.package]
 # LINT.IfChange(version)
-version = "0.2.0"
+version = "0.3.0"
 # LINT.ThenChange(simd_tokens/Cargo.toml)
 edition = "2024"
 rust-version = "1.95"

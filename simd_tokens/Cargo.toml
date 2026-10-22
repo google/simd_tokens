@@ -28,7 +28,7 @@ std = []
 [dependencies]
 # Exact pin: the macro emits paths into this crate's internal API surface.
 # LINT.IfChange(version)
-simd_tokens_macros = { version = "=0.2.0", path = "../simd_tokens_macros" }
+simd_tokens_macros = { version = "=0.3.0", path = "../simd_tokens_macros" }
 # LINT.ThenChange(../Cargo.toml)
 
 [dev-dependencies]
