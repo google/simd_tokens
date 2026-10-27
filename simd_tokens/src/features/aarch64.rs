@@ -34,5 +34,7 @@ super::__define_features!(
         I8mm = "i8mm",
         /// BFloat16 instructions.
         Bf16 = "bf16",
+        /// CRC32 instructions.
+        Crc = "crc",
     ]
 );
