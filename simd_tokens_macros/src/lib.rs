@@ -59,6 +59,7 @@ const FEATURES: &[(&str, &str)] = &[
     ("sha3", "Sha3"),
     ("i8mm", "I8mm"),
     ("bf16", "Bf16"),
+    ("crc", "Crc"),
 ];
 
 /// Derives `SimdToken`, `Has<Feature>`, and `Debug` implementations for a tuple
