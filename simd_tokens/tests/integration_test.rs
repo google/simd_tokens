@@ -484,7 +484,7 @@ mod custom_tokens {
     use simd_tokens::aarch64::{Aes, Neon, Sha2};
     use simd_tokens::x86::{
         Avx2, Avx512bitalg, Avx512bw, Avx512f, Avx512vbmi, Avx512vbmi2, Avx512vl, Avx512vnni,
-        Avx512vpopcntdq, Fma, Gfni, Sse, Sse2, Vaes, Vpclmulqdq,
+        Avx512vpopcntdq, Avxvnni, Fma, Gfni, Sse, Sse2, Vaes, Vpclmulqdq,
     };
     use simd_tokens::{aarch64, simd_entry, x86, Has, SimdToken};
 
@@ -526,6 +526,9 @@ mod custom_tokens {
     #[derive(Copy, Clone, SimdToken)]
     struct Avx2VaesToken(Avx2, Fma, Vaes, Vpclmulqdq);
 
+    #[derive(Copy, Clone, SimdToken)]
+    struct Avx2VnniToken(Avx2, Avxvnni);
+
     mod imported_aes {
         use simd_tokens::x86::Aes;
         use simd_tokens::SimdToken;
@@ -545,6 +548,13 @@ mod custom_tokens {
     #[simd_entry]
     #[target_feature(enable = "avx2,fma,vaes,vpclmulqdq")]
     fn avx2_vaes_kernel(a: f32, b: f32, token: impl SimdToken) -> f32 {
+        a + b
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[simd_entry]
+    #[target_feature(enable = "avx2,avxvnni")]
+    fn avx2_vnni_kernel(a: f32, b: f32, token: impl SimdToken) -> f32 {
         a + b
     }
 
@@ -577,6 +587,7 @@ mod custom_tokens {
         expect_eq!(core::mem::size_of::<StandaloneX86Aes>(), 0);
         expect_eq!(core::mem::size_of::<StandaloneArmAes>(), 0);
         expect_eq!(core::mem::size_of::<Avx2VaesToken>(), 0);
+        expect_eq!(core::mem::size_of::<Avx2VnniToken>(), 0);
         expect_eq!(core::mem::size_of::<imported_aes::ImportedX86AesToken>(), 0);
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -598,6 +609,9 @@ mod custom_tokens {
 
             if let Some(vaes_tok) = Avx2VaesToken::try_new() {
                 expect_eq!(avx2_vaes_kernel(3.0, 4.0, vaes_tok), 7.0);
+            }
+            if let Some(vnni_tok) = Avx2VnniToken::try_new() {
+                expect_eq!(avx2_vnni_kernel(3.0, 4.0, vnni_tok), 7.0);
             }
             if let Some(icelake) = IcelakeAvx512Token::try_new() {
                 expect_eq!(icelake_kernel(3.0, 7.0, icelake), 21.0);
@@ -637,11 +651,22 @@ mod custom_tokens {
             use std::arch::is_x86_feature_detected;
 
             #[derive(Copy, Clone, SimdToken)]
+            struct LocalAvx2VnniToken(Avx2, Avxvnni);
+
+            #[derive(Copy, Clone, SimdToken)]
             struct VbmiToken(Avx512f, Avx512vbmi, Avx512vbmi2);
 
             let avx2 = is_x86_feature_detected!("avx2");
             expect_eq!(Avx2::try_new().is_some(), avx2);
             expect_eq!(Avx2::try_new().is_some(), avx2);
+
+            let avxvnni = is_x86_feature_detected!("avxvnni");
+            expect_eq!(Avxvnni::try_new().is_some(), avxvnni);
+            expect_eq!(Avxvnni::try_new().is_some(), avxvnni);
+
+            let avx_vnni = avx2 && avxvnni;
+            expect_eq!(LocalAvx2VnniToken::try_new().is_some(), avx_vnni);
+            expect_eq!(LocalAvx2VnniToken::try_new().is_some(), avx_vnni);
 
             let vbmi = is_x86_feature_detected!("avx512f")
                 && is_x86_feature_detected!("avx512vbmi")

@@ -36,6 +36,8 @@ super::__define_features!(
         Avx = "avx",
         /// AVX2 support (256-bit integer SIMD).
         Avx2 = "avx2",
+        /// AVX-VNNI support (VEX-encoded Vector Neural Network Instructions).
+        Avxvnni = "avxvnni",
         /// FMA (fused multiply-add) support.
         Fma = "fma",
         /// BMI1 support.
