@@ -27,5 +27,4 @@ note: required by a bound in `require_sse`
    | ^^^^^^^^^^^^^ required by this bound in `require_sse`
 ...
 14 | fn require_sse(a: f32, token: impl SimdToken) -> f32 {
-   |    ----------- required by a bound in this function
    = note: this error originates in the derive macro `SimdToken` which comes from the expansion of the attribute macro `simd_entry` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -28,6 +28,22 @@ jobs:
       with:
         persist-credentials: false
     - run: cargo test --workspace --locked
+      env:
+        # Allow diagnostic wording drift across rustc releases; a test that
+        # unexpectedly compiles still fails here, and the next step warns on
+        # snapshot diffs (and fails on missing snapshots).
+        TRYBUILD: overwrite
+    - name: Check compile-fail snapshots
+      run: |
+        if [ -n "$(git ls-files --others --exclude-standard -- simd_tokens/tests/build_tests/)" ]; then
+          echo "::error::Missing .stderr snapshot(s) for compile-fail test(s):"
+          git ls-files --others --exclude-standard -- simd_tokens/tests/build_tests/
+          exit 1
+        fi
+        if ! git diff --quiet -- simd_tokens/tests/build_tests/; then
+          echo "::warning::Compile-fail .stderr snapshots differ from current rustc output."
+          git diff -- simd_tokens/tests/build_tests/
+        fi
     - name: no_std build
       run: cargo build -p simd_tokens --no-default-features --locked
 
