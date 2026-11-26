@@ -27,6 +27,7 @@ const FEATURES: &[(&str, &str)] = &[
     ("aes", "Aes"),
     ("avx", "Avx"),
     ("avx2", "Avx2"),
+    ("avxvnni", "Avxvnni"),
     ("fma", "Fma"),
     ("bmi1", "Bmi1"),
     ("bmi2", "Bmi2"),
